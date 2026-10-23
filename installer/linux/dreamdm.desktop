@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Dream Download Manager
+GenericName=Download Manager
+Comment=Free, open-source download manager with no ads
+Exec=dreamdm
+Icon=dreamdm
+Terminal=false
+Categories=Network;FileTransfer;
+Keywords=download;video;youtube;manager;
+StartupWMClass=dreamdm

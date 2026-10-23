@@ -1,0 +1,138 @@
+:root {
+  --bg: #161a21;
+  --panel: #1e232c;
+  --line: #2c3340;
+  --text: #e7eaf0;
+  --muted: #8c95a6;
+  --flight: #f2a93b;
+  --done: #35b58a;
+  --bad: #e5534b;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: #f3f5f8;
+    --panel: #ffffff;
+    --line: #dce1e8;
+    --text: #18202b;
+    --muted: #5e6878;
+    --flight: #c9821a;
+    --done: #1f8f68;
+    --bad: #c63d36;
+    color-scheme: light;
+  }
+}
+
+body {
+  width: 290px;
+  margin: 0;
+  padding: 14px 16px 16px;
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.45 "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+h1 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.status {
+  margin: 12px 0;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+}
+
+.status.ok::before,
+.status.warn::before,
+.status.bad::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  vertical-align: 1px;
+}
+.status.ok::before { background: var(--done); }
+.status.warn::before { background: var(--flight); }
+.status.bad::before { background: var(--bad); }
+
+.toggle {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  cursor: pointer;
+}
+
+.toggle input {
+  margin: 3px 0 0;
+  accent-color: var(--flight);
+}
+
+.toggle small {
+  display: block;
+  color: var(--muted);
+}
+
+.hint {
+  margin: 12px 0;
+  color: var(--muted);
+}
+
+button + button {
+  margin-top: 8px;
+}
+
+button.secondary {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+button {
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--text);
+  color: var(--bg);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--flight);
+  outline-offset: 2px;
+}
+
+.toggle + .toggle {
+  margin-top: 10px;
+}
+
+button.link {
+  display: inline;
+  width: auto;
+  padding: 0;
+  background: none;
+  color: var(--flight);
+  font-weight: 400;
+  text-decoration: underline;
+}

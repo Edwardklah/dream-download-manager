@@ -1,0 +1,41 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header>
+      <img src="icons/icon32.png" alt="" width="20" height="20" />
+      <h1>Dream Download Manager</h1>
+    </header>
+
+    <p id="status" class="status">Checking…</p>
+
+    <label class="toggle">
+      <input type="checkbox" id="enabled" />
+      <span>
+        <b>Catch downloads</b>
+        <small>Send downloads you start in this browser to Dream Download Manager.</small>
+      </span>
+    </label>
+
+    <label class="toggle">
+      <input type="checkbox" id="videoButton" />
+      <span>
+        <b>Button on videos</b>
+        <small>Show a Download button on videos as you point at them.</small>
+      </span>
+    </label>
+    <p id="hiddenNote" class="hint" hidden>
+      Hidden on this site. <button id="unhide" class="link">Show it here again</button>
+    </p>
+
+    <p class="hint">Or right-click any link: <b>Download with Dream Download Manager</b>.</p>
+
+    <button id="video" class="secondary">Download the video on this page</button>
+    <button id="open">Open Dream Download Manager</button>
+
+    <script src="popup.js"></script>
+  </body>
+</html>

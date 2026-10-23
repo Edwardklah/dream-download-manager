@@ -1,0 +1,51 @@
+{
+  "manifest_version": 3,
+  "name": "Dream Download Manager",
+  "version": "0.4.0",
+  "description": "Sends downloads to Dream Download Manager, the free open-source download manager.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzTqaXHS9gucmxuhXNKGl7cNPkoCjJPhXbqgWV0uxIGge3RfShlUgtpkZCGbXdgfnik8DddlifCcDHIc+DRYnBiJnIJ8vKgQkgjRvPSznJeLqJW6wC58Gsu1fw9VaFXXLGsCFYjjjIngb/uprpi5Q2WNy99hI5wMIRTE0tzdr1hFYPW2evylQ+8Gw78feKx9PKHGqmS6pwanhSkAkV0k1TfLArya3d1bPQKak18Ao74NE9EX4UJRKkTEbxx5MtY0eKyKnKAssYQ1hol9zBbBwG6x2dPyrNQHHI4guJPWu1GN9VT29p371HH0AfMFYkrx1+Caw9hooMHrj+feSLBNEsQIDAQAB",
+  "permissions": [
+    "downloads",
+    "nativeMessaging",
+    "contextMenus",
+    "cookies",
+    "storage",
+    "notifications"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Dream Download Manager",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "all_frames": true,
+      "run_at": "document_idle"
+    }
+  ]
+}

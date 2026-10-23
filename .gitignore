@@ -1,0 +1,13 @@
+dl.exe
+*.part
+*.part.meta
+*.part.lock
+.dev/
+dist/
+node_modules/
+gui/bin/
+gui/frontend/dist/
+gui/frontend/bindings/
+*.syso
+*.exe
+*.exe~

@@ -1,0 +1,15 @@
+{
+	"fixed": {
+		"file_version": "0.9.0"
+	},
+	"info": {
+		"0409": {
+			"ProductVersion": "0.9.0",
+			"CompanyName": "Dream Download Manager",
+			"FileDescription": "Dream Download Manager",
+			"LegalCopyright": "\u00a9 2026 KLAH. Free software under the GPL v3 or later.",
+			"ProductName": "Dream Download Manager",
+			"Comments": "A free, open-source, ad-free download manager"
+		}
+	}
+}

@@ -1,0 +1,9 @@
+{
+  "name": "com.dlmanager.host",
+  "description": "Dream Download Manager - receives links from the browser extension",
+  "path": "/opt/dreamdm/dlm-host",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://hjchnlipjbjlmobfaekngdjdjldjhpdk/"
+  ]
+}

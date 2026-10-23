@@ -1,0 +1,56 @@
+# nfpm.yaml - builds the Linux packages (.deb for Ubuntu/Debian/Mint, .rpm
+# for Fedora/openSUSE) from the files the build put in dist/linux.
+# Used by .github/workflows/build.yml:  nfpm package -f installer/linux/nfpm.yaml -p deb
+#
+# Everything goes in /opt/dreamdm (the program, the browser helper, the
+# extension's files), with a "dreamdm" command, a menu entry and an icon.
+# The browser helper's manifests go where Chrome, Chromium and Edge look for
+# them system-wide, so the extension works for every user.
+
+name: dreamdm
+arch: amd64
+platform: linux
+version: ${VERSION}
+section: net
+priority: optional
+maintainer: KLAH
+description: |
+  Dream Download Manager: a free, open-source download manager with no ads.
+  Multi-connection downloads that resume, video sites, subtitles, browser
+  catching, schedules and themes.
+license: GPL-3.0-or-later
+
+depends:
+  - libgtk-3-0
+  - libwebkit2gtk-4.1-0
+overrides:
+  rpm:
+    depends:
+      - gtk3
+      - webkit2gtk4.1
+
+contents:
+  - src: dist/linux/dreamdm
+    dst: /opt/dreamdm/dreamdm
+    file_info: { mode: 0755 }
+  - src: dist/linux/dlm-host
+    dst: /opt/dreamdm/dlm-host
+    file_info: { mode: 0755 }
+  - src: extension/
+    dst: /opt/dreamdm/extension/
+  - src: /opt/dreamdm/dreamdm
+    dst: /usr/bin/dreamdm
+    type: symlink
+  - src: installer/linux/dreamdm.desktop
+    dst: /usr/share/applications/dreamdm.desktop
+  - src: installer/linux/dreamdm.png
+    dst: /usr/share/icons/hicolor/256x256/apps/dreamdm.png
+  - src: LICENSE
+    dst: /usr/share/doc/dreamdm/copyright
+  # The browser extension's helper (cmd/dlm-host), for every user.
+  - src: installer/linux/com.dlmanager.host.json
+    dst: /etc/opt/chrome/native-messaging-hosts/com.dlmanager.host.json
+  - src: installer/linux/com.dlmanager.host.json
+    dst: /etc/chromium/native-messaging-hosts/com.dlmanager.host.json
+  - src: installer/linux/com.dlmanager.host.json
+    dst: /etc/opt/edge/native-messaging-hosts/com.dlmanager.host.json

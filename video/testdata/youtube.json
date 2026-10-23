@@ -1,0 +1,356 @@
+{
+ "id": "abc123XYZ00",
+ "title": "A test video: with / odd \\ characters?",
+ "uploader": "Someone",
+ "duration": 60.0,
+ "thumbnail": "https://i.ytimg.com/vi/abc123XYZ00/maxresdefault.jpg",
+ "webpage_url": "https://www.youtube.com/watch?v=abc123XYZ00",
+ "extractor_key": "Youtube",
+ "_type": "video",
+ "formats": [
+  {
+   "format_id": "sb0",
+   "ext": "mhtml",
+   "vcodec": "none",
+   "acodec": "none",
+   "protocol": "mhtml",
+   "url": "https://i.ytimg.com/sb/x"
+  },
+  {
+   "format_id": "139",
+   "ext": "m4a",
+   "vcodec": "none",
+   "acodec": "mp4a.40.5",
+   "abr": 48,
+   "tbr": 48,
+   "protocol": "https",
+   "filesize": 360000,
+   "url": "https://rr1.example.googlevideo.com/videoplayback?itag=139",
+   "http_headers": {
+    "User-Agent": "Mozilla/5.0 test"
+   },
+   "downloader_options": {
+    "http_chunk_size": 10485760
+   },
+   "language_preference": 10
+  },
+  {
+   "format_id": "140",
+   "ext": "m4a",
+   "vcodec": "none",
+   "acodec": "mp4a.40.2",
+   "abr": 129,
+   "tbr": 129,
+   "protocol": "https",
+   "filesize": 967500,
+   "url": "https://rr1.example.googlevideo.com/videoplayback?itag=140",
+   "http_headers": {
+    "User-Agent": "Mozilla/5.0 test"
+   },
+   "downloader_options": {
+    "http_chunk_size": 10485760
+   },
+   "language_preference": 10
+  },
+  {
+   "format_id": "140-1",
+   "ext": "m4a",
+   "vcodec": "none",
+   "acodec": "mp4a.40.2",
+   "abr": 130,
+   "tbr": 130,
+   "protocol": "https",
+   "filesize": 975000,
+   "url": "https://rr1.example.googlevideo.com/videoplayback?itag=140-1",
+   "http_headers": {
+    "User-Agent": "Mozilla/5.0 test"
+   },
+   "downloader_options": {
+    "http_chunk_size": 10485760
+   },
+   "language_preference": -1
+  },
+  {
+   "format_id": "251",
+   "ext": "webm",
+   "vcodec": "none",
+   "acodec": "opus",
+   "abr": 160,
+   "tbr": 160,
+   "protocol": "https",
+   "filesize": 1200000,
+   "url": "https://rr1.example.googlevideo.com/videoplayback?itag=251",
+   "http_headers": {
+    "User-Agent": "Mozilla/5.0 test"
+   },
+   "downloader_options": {
+    "http_chunk_size": 10485760
+   },
+   "language_preference": 10
+  },
+  {
+   "format_id": "18",
+   "ext": "mp4",
+   "vcodec": "avc1.42001E",
+   "acodec": "mp4a.40.2",
+   "height": 360,
+   "width": 640,
+   "fps": 30,
+   "tbr": 500,
+   "filesize_approx": 3750000,
+   "protocol": "https",
+   "url": "https://rr1.example.googlevideo.com/videoplayback?itag=18"
+  },
+  {
+   "format_id": "96",
+   "ext": "mp4",
+   "vcodec": "avc1.640028",
+   "acodec": "mp4a.40.2",
+   "height": 1080,
+   "width": 1920,
+   "protocol": "m3u8_native",
+   "url": "https://manifest.example/x.m3u8"
+  },
+  {
+   "format_id": "134",
+   "ext": "mp4",
+   "vcodec": "avc1.4d401e",
+   "acodec": "none",
+   "height": 360,
+   "width": 640,
+   "fps": 30,
+   "tbr": 600,
+   "filesize": 4500000,
+   "protocol": "https",
+   "url": "https://rr1.example.googlevideo.com/videoplayback?itag=134",
+   "dynamic_range": "SDR",
+   "http_headers": {
+    "User-Agent": "Mozilla/5.0 test"
+   },
+   "downloader_options": {
+    "http_chunk_size": 10485760
+   }
+  },
+  {
+   "format_id": "135",
+   "ext": "mp4",
+   "vcodec": "avc1.4d401f",
+   "acodec": "none",
+   "height": 480,
+   "width": 853,
+   "fps": 30,
+   "tbr": 1000,
+   "filesize": 7500000,
+   "protocol": "https",
+   "url": "https://rr1.example.googlevideo.com/videoplayback?itag=135",
+   "dynamic_range": "SDR",
+   "http_headers": {
+    "User-Agent": "Mozilla/5.0 test"
+   },
+   "downloader_options": {
+    "http_chunk_size": 10485760
+   }
+  },
+  {
+   "format_id": "136",
+   "ext": "mp4",
+   "vcodec": "avc1.4d401f",
+   "acodec": "none",
+   "height": 720,
+   "width": 1280,
+   "fps": 30,
+   "tbr": 2000,
+   "filesize": 15000000,
+   "protocol": "https",
+   "url": "https://rr1.example.googlevideo.com/videoplayback?itag=136",
+   "dynamic_range": "SDR",
+   "http_headers": {
+    "User-Agent": "Mozilla/5.0 test"
+   },
+   "downloader_options": {
+    "http_chunk_size": 10485760
+   }
+  },
+  {
+   "format_id": "247",
+   "ext": "webm",
+   "vcodec": "vp9",
+   "acodec": "none",
+   "height": 720,
+   "width": 1280,
+   "fps": 30,
+   "tbr": 1800,
+   "filesize": 13500000,
+   "protocol": "https",
+   "url": "https://rr1.example.googlevideo.com/videoplayback?itag=247",
+   "dynamic_range": "SDR",
+   "http_headers": {
+    "User-Agent": "Mozilla/5.0 test"
+   },
+   "downloader_options": {
+    "http_chunk_size": 10485760
+   }
+  },
+  {
+   "format_id": "137",
+   "ext": "mp4",
+   "vcodec": "avc1.640028",
+   "acodec": "none",
+   "height": 1080,
+   "width": 1920,
+   "fps": 30,
+   "tbr": 4000,
+   "filesize": 30000000,
+   "protocol": "https",
+   "url": "https://rr1.example.googlevideo.com/videoplayback?itag=137",
+   "dynamic_range": "SDR",
+   "http_headers": {
+    "User-Agent": "Mozilla/5.0 test"
+   },
+   "downloader_options": {
+    "http_chunk_size": 10485760
+   }
+  },
+  {
+   "format_id": "248",
+   "ext": "webm",
+   "vcodec": "vp9",
+   "acodec": "none",
+   "height": 1080,
+   "width": 1920,
+   "fps": 30,
+   "tbr": 3000,
+   "filesize": 22500000,
+   "protocol": "https",
+   "url": "https://rr1.example.googlevideo.com/videoplayback?itag=248",
+   "dynamic_range": "SDR",
+   "http_headers": {
+    "User-Agent": "Mozilla/5.0 test"
+   },
+   "downloader_options": {
+    "http_chunk_size": 10485760
+   }
+  },
+  {
+   "format_id": "399",
+   "ext": "mp4",
+   "vcodec": "av01.0.08M.08",
+   "acodec": "none",
+   "height": 1080,
+   "width": 1920,
+   "fps": 30,
+   "tbr": 2500,
+   "filesize": 18750000,
+   "protocol": "https",
+   "url": "https://rr1.example.googlevideo.com/videoplayback?itag=399",
+   "dynamic_range": "SDR",
+   "http_headers": {
+    "User-Agent": "Mozilla/5.0 test"
+   },
+   "downloader_options": {
+    "http_chunk_size": 10485760
+   }
+  },
+  {
+   "format_id": "299",
+   "ext": "mp4",
+   "vcodec": "avc1.64002a",
+   "acodec": "none",
+   "height": 1080,
+   "width": 1920,
+   "fps": 60,
+   "tbr": 6000,
+   "filesize": 45000000,
+   "protocol": "https",
+   "url": "https://rr1.example.googlevideo.com/videoplayback?itag=299",
+   "dynamic_range": "SDR",
+   "http_headers": {
+    "User-Agent": "Mozilla/5.0 test"
+   },
+   "downloader_options": {
+    "http_chunk_size": 10485760
+   }
+  },
+  {
+   "format_id": "400",
+   "ext": "mp4",
+   "vcodec": "av01.0.12M.08",
+   "acodec": "none",
+   "height": 1440,
+   "width": 2560,
+   "fps": 30,
+   "tbr": 8000,
+   "filesize": 60000000,
+   "protocol": "https",
+   "url": "https://rr1.example.googlevideo.com/videoplayback?itag=400",
+   "dynamic_range": "SDR",
+   "http_headers": {
+    "User-Agent": "Mozilla/5.0 test"
+   },
+   "downloader_options": {
+    "http_chunk_size": 10485760
+   }
+  },
+  {
+   "format_id": "701",
+   "ext": "mp4",
+   "vcodec": "av01.0.12M.08",
+   "acodec": "none",
+   "height": 2160,
+   "width": 3840,
+   "fps": 30,
+   "tbr": 15000,
+   "filesize": 112500000,
+   "protocol": "https",
+   "url": "https://rr1.example.googlevideo.com/videoplayback?itag=701",
+   "dynamic_range": "SDR",
+   "http_headers": {
+    "User-Agent": "Mozilla/5.0 test"
+   },
+   "downloader_options": {
+    "http_chunk_size": 10485760
+   }
+  },
+  {
+   "format_id": "701-hdr",
+   "ext": "mp4",
+   "vcodec": "av01.0.13M.10",
+   "acodec": "none",
+   "height": 2160,
+   "width": 3840,
+   "fps": 30,
+   "tbr": 20000,
+   "filesize": 150000000,
+   "protocol": "https",
+   "url": "https://rr1.example.googlevideo.com/videoplayback?itag=701-hdr",
+   "dynamic_range": "HDR10",
+   "http_headers": {
+    "User-Agent": "Mozilla/5.0 test"
+   },
+   "downloader_options": {
+    "http_chunk_size": 10485760
+   }
+  },
+  {
+   "format_id": "drm",
+   "ext": "mp4",
+   "vcodec": "avc1.4d401f",
+   "acodec": "none",
+   "height": 720,
+   "width": 1280,
+   "fps": 30,
+   "tbr": 2000,
+   "filesize": 15000000,
+   "protocol": "https",
+   "url": "https://rr1.example.googlevideo.com/videoplayback?itag=drm",
+   "dynamic_range": "SDR",
+   "http_headers": {
+    "User-Agent": "Mozilla/5.0 test"
+   },
+   "downloader_options": {
+    "http_chunk_size": 10485760
+   },
+   "has_drm": true
+  }
+ ]
+}
