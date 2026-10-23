@@ -169,16 +169,15 @@ func TestSaveSubtitleFallsBackToYtDlp(t *testing.T) {
 }
 
 // Overlapping subtitles (YouTube's automatic captions as SRT) become
-// subtitles that don't overlap, the older line on top - players stack
+// two-line subtitles that don't overlap, in order - players stack
 // overlapping ones newest-first, so the text read backwards.
 func TestOverlappingSRTFlattened(t *testing.T) {
 	in := "1\r\n00:00:00,000 --> 00:00:05,000\r\nfirst line\r\n\r\n" +
 		"2\r\n00:00:02,500 --> 00:00:07,500\r\nsecond line\r\n\r\n" +
 		"3\r\n00:00:05,000 --> 00:00:09,000\r\nthird line\r\n\r\n"
-	want := "1\r\n00:00:00,000 --> 00:00:02,500\r\nfirst line\r\n\r\n" +
-		"2\r\n00:00:02,500 --> 00:00:05,000\r\nfirst line\r\nsecond line\r\n\r\n" +
-		"3\r\n00:00:05,000 --> 00:00:07,500\r\nsecond line\r\nthird line\r\n\r\n" +
-		"4\r\n00:00:07,500 --> 00:00:09,000\r\nthird line\r\n\r\n"
+	// In pairs, each line once: 1+2 until 3 starts, then 3.
+	want := "1\r\n00:00:00,000 --> 00:00:05,000\r\nfirst line\r\nsecond line\r\n\r\n" +
+		"2\r\n00:00:05,000 --> 00:00:09,000\r\nthird line\r\n\r\n"
 	if got := string(fixSRT([]byte(in))); got != want {
 		t.Errorf("got:\n%s\nwant:\n%s", got, want)
 	}

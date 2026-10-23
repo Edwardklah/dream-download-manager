@@ -12,7 +12,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -367,7 +366,7 @@ func VTTToSRT(data []byte) ([]byte, error) {
 	if rolling {
 		cues = unroll(cues)
 	}
-	return writeSRT(flatten(cues)), nil
+	return writeSRT(pairUp(cues)), nil
 }
 
 func writeSRT(cues []cue) []byte {
@@ -383,49 +382,36 @@ func writeSRT(cues []cue) []byte {
 // YouTube's automatic captions (as SRT too) show each line for about five
 // seconds and start the next one halfway through: two subtitles on screen
 // at once. Players stack those with the NEWER one on top, so the text reads
-// backwards. flatten turns overlaps into subtitles that don't overlap: where
-// two were on screen together, one subtitle with both lines, the older on
-// top - as YouTube itself shows them.
+// backwards. pairUp turns them into ordinary two-line subtitles that don't
+// overlap: lines 1 and 2 together, then 3 and 4, and so on - each line
+// shown once, in order.
 
-// flatten returns cues that never overlap, the lines of overlapping ones
-// combined in the order they started. Cues that don't overlap are left as
-// they are.
-func flatten(cues []cue) []cue {
+// pairUp joins each subtitle with the next one when they overlap, into one
+// subtitle that lasts until the one after starts. Subtitles that don't
+// overlap stay as they are.
+func pairUp(cues []cue) []cue {
 	if !overlapping(cues) {
 		return cues
 	}
 	sorted := append([]cue(nil), cues...)
 	sort.SliceStable(sorted, func(i, j int) bool { return sorted[i].start < sorted[j].start })
-	// Every moment a subtitle starts or ends; between two of them, the same
-	// lines are on screen.
-	var marks []time.Duration
-	for _, c := range sorted {
-		marks = append(marks, c.start, c.end)
-	}
-	slices.Sort(marks)
-	marks = slices.Compact(marks)
-
 	var out []cue
-	for i := 0; i+1 < len(marks); i++ {
-		from, to := marks[i], marks[i+1]
-		var lines []string
-		for _, c := range sorted {
-			if c.start > from {
-				break // sorted by start: none of the rest has begun
-			}
-			if c.end > from {
-				lines = append(lines, c.lines...)
-			}
+	for i := 0; i < len(sorted); {
+		c := sorted[i]
+		take := 1
+		if i+1 < len(sorted) && c.end > sorted[i+1].start {
+			next := sorted[i+1]
+			c = cue{start: c.start, end: max(c.end, next.end), lines: append(append([]string(nil), c.lines...), next.lines...)}
+			take = 2
 		}
-		if len(lines) == 0 {
-			continue
+		// It gives way to whatever comes after.
+		if i+take < len(sorted) && c.end > sorted[i+take].start {
+			c.end = sorted[i+take].start
 		}
-		// The same lines as just before, straight on: one subtitle.
-		if n := len(out); n > 0 && out[n-1].end == from && slices.Equal(out[n-1].lines, lines) {
-			out[n-1].end = to
-			continue
+		if c.end > c.start {
+			out = append(out, c)
 		}
-		out = append(out, cue{start: from, end: to, lines: lines})
+		i += take
 	}
 	return out
 }
@@ -444,7 +430,7 @@ func overlapping(cues []cue) bool {
 // srtTiming is an SRT timing line: "00:00:01,000 --> 00:00:04,000".
 var srtTiming = regexp.MustCompile(`^(\d+:\d{2}:\d{2}[,.]\d{1,3})\s*-->\s*(\d+:\d{2}:\d{2}[,.]\d{1,3})`)
 
-// fixSRT flattens an SRT file's overlapping subtitles. A file without any
+// fixSRT pairs up an SRT file's overlapping subtitles. A file without any
 // is returned exactly as it was.
 func fixSRT(data []byte) []byte {
 	text := strings.ReplaceAll(string(data), "\r\n", "\n")
@@ -475,7 +461,7 @@ func fixSRT(data []byte) []byte {
 	if !overlapping(cues) {
 		return data
 	}
-	return writeSRT(flatten(cues))
+	return writeSRT(pairUp(cues))
 }
 
 // unroll removes the repeated lines of rolling captions: lines a cue shares
