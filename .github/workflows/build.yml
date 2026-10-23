@@ -93,6 +93,11 @@ jobs:
         run: |
           nfpm package -f installer/linux/nfpm.yaml -p deb -t dist/
           nfpm package -f installer/linux/nfpm.yaml -p rpm -t dist/
+          # Check the .deb really holds the extension, readable by everyone.
+          dpkg-deb -c dist/*.deb | grep /opt/dreamdm/
+          for f in manifest.json background.js icons/icon16.png icons/icon128.png; do
+            dpkg-deb -c dist/*.deb | grep -q "^-rw-r--r-- .*/opt/dreamdm/extension/$f$" || { echo "missing or unreadable in the .deb: $f"; exit 1; }
+          done
           # A plain archive too, for other distributions.
           mkdir -p dist/tar/dreamdm
           cp dist/linux/dreamdm dist/linux/dlm-host LICENSE installer/linux/dreamdm.desktop installer/linux/dreamdm.png dist/tar/dreamdm/

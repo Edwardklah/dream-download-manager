@@ -1374,7 +1374,7 @@ const HELP: { title: string; items: [string, string][] }[] = [
       ],
       [
         "How do I connect the browser extension?",
-        "Press Show the welcome again (at the bottom of Help) and go to Browser: it walks you through it and shows when it's connected. In short: type chrome://extensions (Edge: edge://extensions) in the address bar, switch on Developer mode, press Load unpacked and choose the \"extension\" folder where Dream DM is installed.",
+        "Press Show the welcome again (at the bottom of Help) and go to Browser: it walks you through it and shows when it's connected. In short: type chrome://extensions (Edge: edge://extensions) in the address bar, switch on Developer mode, press Load unpacked and choose the \"extension\" folder where Dream DM is installed - the folder itself, not one inside it. \"Manifest file is missing\" means a folder inside it (like icons) was chosen: choose \"extension\" instead.",
       ],
       [
         "Download or Start now?",
@@ -1720,7 +1720,11 @@ function WelcomeBrowser({ act }: { act: (p: Promise<unknown>) => void }) {
                   Open the folder
                 </button>
               </div>
-              <p class="hint">Tip: paste the address into the folder window's address bar.</p>
+              <p class="hint">
+                Tip: paste the address into the folder window's address bar, then press <b>Select Folder</b>. Choose the{" "}
+                <b>extension</b> folder itself - don't go into it (choosing the <b>icons</b> folder inside gives "Manifest file is
+                missing").
+              </p>
             </>
           ) : (
             <p class="hint">The extension's files weren't found. Reinstalling Dream DM puts them back.</p>

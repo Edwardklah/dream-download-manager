@@ -38,8 +38,33 @@ contents:
   - src: dist/linux/dlm-host
     dst: /opt/dreamdm/dlm-host
     file_info: { mode: 0755 }
-  - src: extension/
+  # The extension's files, listed by kind with their folders made
+  # explicitly: readable by everyone (Chrome runs as the user, not root).
+  # Copying the folder as one lump left its icons folder unreadable.
+  - dst: /opt/dreamdm
+    type: dir
+    file_info: { mode: 0755 }
+  - dst: /opt/dreamdm/extension
+    type: dir
+    file_info: { mode: 0755 }
+  - dst: /opt/dreamdm/extension/icons
+    type: dir
+    file_info: { mode: 0755 }
+  - src: extension/*.json
     dst: /opt/dreamdm/extension/
+    file_info: { mode: 0644 }
+  - src: extension/*.js
+    dst: /opt/dreamdm/extension/
+    file_info: { mode: 0644 }
+  - src: extension/*.html
+    dst: /opt/dreamdm/extension/
+    file_info: { mode: 0644 }
+  - src: extension/*.css
+    dst: /opt/dreamdm/extension/
+    file_info: { mode: 0644 }
+  - src: extension/icons/*.png
+    dst: /opt/dreamdm/extension/icons/
+    file_info: { mode: 0644 }
   - src: /opt/dreamdm/dreamdm
     dst: /usr/bin/dreamdm
     type: symlink
