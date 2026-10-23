@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -236,7 +237,7 @@ func writeSubtitle(stem, ext string, data []byte) (string, error) {
 		}
 		data, ext = srt, "srt"
 	case "srt":
-		data = []byte(strings.TrimPrefix(string(data), "\uFEFF"))
+		data = fixSRT([]byte(strings.TrimPrefix(string(data), "\uFEFF")))
 	case "ass", "ssa":
 	default:
 		// Formats we don't convert (TTML, json3...): kept as they are, so
@@ -366,12 +367,115 @@ func VTTToSRT(data []byte) ([]byte, error) {
 	if rolling {
 		cues = unroll(cues)
 	}
+	return writeSRT(flatten(cues)), nil
+}
 
+func writeSRT(cues []cue) []byte {
 	var b strings.Builder
 	for i, c := range cues {
 		fmt.Fprintf(&b, "%d\r\n%s --> %s\r\n%s\r\n\r\n", i+1, srtTime(c.start), srtTime(c.end), strings.Join(c.lines, "\r\n"))
 	}
-	return []byte(b.String()), nil
+	return []byte(b.String())
+}
+
+// ---- Overlapping subtitles ----
+//
+// YouTube's automatic captions (as SRT too) show each line for about five
+// seconds and start the next one halfway through: two subtitles on screen
+// at once. Players stack those with the NEWER one on top, so the text reads
+// backwards. flatten turns overlaps into subtitles that don't overlap: where
+// two were on screen together, one subtitle with both lines, the older on
+// top - as YouTube itself shows them.
+
+// flatten returns cues that never overlap, the lines of overlapping ones
+// combined in the order they started. Cues that don't overlap are left as
+// they are.
+func flatten(cues []cue) []cue {
+	if !overlapping(cues) {
+		return cues
+	}
+	sorted := append([]cue(nil), cues...)
+	sort.SliceStable(sorted, func(i, j int) bool { return sorted[i].start < sorted[j].start })
+	// Every moment a subtitle starts or ends; between two of them, the same
+	// lines are on screen.
+	var marks []time.Duration
+	for _, c := range sorted {
+		marks = append(marks, c.start, c.end)
+	}
+	slices.Sort(marks)
+	marks = slices.Compact(marks)
+
+	var out []cue
+	for i := 0; i+1 < len(marks); i++ {
+		from, to := marks[i], marks[i+1]
+		var lines []string
+		for _, c := range sorted {
+			if c.start > from {
+				break // sorted by start: none of the rest has begun
+			}
+			if c.end > from {
+				lines = append(lines, c.lines...)
+			}
+		}
+		if len(lines) == 0 {
+			continue
+		}
+		// The same lines as just before, straight on: one subtitle.
+		if n := len(out); n > 0 && out[n-1].end == from && slices.Equal(out[n-1].lines, lines) {
+			out[n-1].end = to
+			continue
+		}
+		out = append(out, cue{start: from, end: to, lines: lines})
+	}
+	return out
+}
+
+func overlapping(cues []cue) bool {
+	sorted := append([]cue(nil), cues...)
+	sort.SliceStable(sorted, func(i, j int) bool { return sorted[i].start < sorted[j].start })
+	for i := 0; i+1 < len(sorted); i++ {
+		if sorted[i].end > sorted[i+1].start {
+			return true
+		}
+	}
+	return false
+}
+
+// srtTiming is an SRT timing line: "00:00:01,000 --> 00:00:04,000".
+var srtTiming = regexp.MustCompile(`^(\d+:\d{2}:\d{2}[,.]\d{1,3})\s*-->\s*(\d+:\d{2}:\d{2}[,.]\d{1,3})`)
+
+// fixSRT flattens an SRT file's overlapping subtitles. A file without any
+// is returned exactly as it was.
+func fixSRT(data []byte) []byte {
+	text := strings.ReplaceAll(string(data), "\r\n", "\n")
+	var cues []cue
+	for _, block := range strings.Split(text, "\n\n") {
+		lines := strings.Split(strings.Trim(block, "\n"), "\n")
+		ti := -1
+		for i := 0; i < len(lines) && i < 2; i++ {
+			if srtTiming.MatchString(strings.TrimSpace(lines[i])) {
+				ti = i
+				break
+			}
+		}
+		if ti < 0 {
+			continue
+		}
+		m := srtTiming.FindStringSubmatch(strings.TrimSpace(lines[ti]))
+		c := cue{start: vttTime(m[1]), end: vttTime(m[2])}
+		for _, l := range lines[ti+1:] {
+			if l = strings.TrimRight(l, " \t"); l != "" {
+				c.lines = append(c.lines, l)
+			}
+		}
+		if len(c.lines) > 0 && c.end > c.start {
+			cues = append(cues, c)
+		}
+	}
+	if !overlapping(cues) {
+		return data
+	}
+	return writeSRT(flatten(cues))
 }
 
 // unroll removes the repeated lines of rolling captions: lines a cue shares

@@ -167,3 +167,27 @@ func TestSaveSubtitleFallsBackToYtDlp(t *testing.T) {
 		t.Errorf("args %q", a)
 	}
 }
+
+// Overlapping subtitles (YouTube's automatic captions as SRT) become
+// subtitles that don't overlap, the older line on top - players stack
+// overlapping ones newest-first, so the text read backwards.
+func TestOverlappingSRTFlattened(t *testing.T) {
+	in := "1\r\n00:00:00,000 --> 00:00:05,000\r\nfirst line\r\n\r\n" +
+		"2\r\n00:00:02,500 --> 00:00:07,500\r\nsecond line\r\n\r\n" +
+		"3\r\n00:00:05,000 --> 00:00:09,000\r\nthird line\r\n\r\n"
+	want := "1\r\n00:00:00,000 --> 00:00:02,500\r\nfirst line\r\n\r\n" +
+		"2\r\n00:00:02,500 --> 00:00:05,000\r\nfirst line\r\nsecond line\r\n\r\n" +
+		"3\r\n00:00:05,000 --> 00:00:07,500\r\nsecond line\r\nthird line\r\n\r\n" +
+		"4\r\n00:00:07,500 --> 00:00:09,000\r\nthird line\r\n\r\n"
+	if got := string(fixSRT([]byte(in))); got != want {
+		t.Errorf("got:\n%s\nwant:\n%s", got, want)
+	}
+}
+
+// An SRT file without overlaps is kept exactly as it was.
+func TestSRTWithoutOverlapsUntouched(t *testing.T) {
+	in := "1\n00:00:01,000 --> 00:00:02,000\n<i>Hello</i>\n\n2\n00:00:02,000 --> 00:00:03,500\nWorld\n"
+	if got := string(fixSRT([]byte(in))); got != in {
+		t.Errorf("changed:\n%q", got)
+	}
+}
