@@ -139,6 +139,7 @@ function App() {
   }
   const act = (p: Promise<unknown>) => p.catch(report);
 
+  const failed = items.filter((d) => (d.status as string) === "failed").length;
   const counts = useMemo(
     () => ({
       all: items.length,
@@ -203,10 +204,18 @@ function App() {
         </button>
 
         <nav class="nav" aria-label="Show">
-          {STATUS_NAV.map(([key, label, icon]) => (
+          {STATUS_NAV.map(([key, label, icon]) => {
+            // Badges for the compact sidebar (style.css), where the counts
+            // are hidden: what's downloading and waiting, and failures.
+            const [n, tone] =
+              key === "active" ? [counts.active, "on"]
+              : key === "waiting" ? [counts.waiting, ""]
+              : key === "stopped" ? [failed, "bad"]
+              : [0, ""];
+            return (
             <button
               key={key}
-              title={label}
+              title={n > 0 ? `${label} (${key === "stopped" ? `${n} failed` : n})` : label}
               class={!kind && filter === key ? "on" : ""}
               aria-current={!kind && filter === key}
               onClick={() => {
@@ -217,8 +226,10 @@ function App() {
               <Icon name={icon} />
               <span>{label}</span>
               {counts[key] > 0 && <span class="count">{counts[key]}</span>}
+              {n > 0 && <b class={`badge ${tone}`}>{n > 99 ? "99+" : n}</b>}
             </button>
-          ))}
+            );
+          })}
           {kindCounts.size > 0 && <h4>Categories</h4>}
           {KINDS.filter((k) => (kindCounts.get(k) ?? 0) > 0 || kind === k).map((k) => (
             <button

@@ -317,3 +317,44 @@ func TestMasterPicksBestQuality(t *testing.T) {
 		t.Error("content differs")
 	}
 }
+
+// The speed shows while pieces are still arriving, not only when one
+// finishes (big pieces finishing together made it jump between 0 and bursts).
+func TestSpeedWhilePiecesArrive(t *testing.T) {
+	piece := bytes.Repeat([]byte{0x47}, 400<<10) // 400 KB pieces
+	mux := http.NewServeMux()
+	mux.HandleFunc("/list.m3u8", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, "#EXTM3U\n#EXT-X-TARGETDURATION:4\n#EXTINF:4,\na.ts\n#EXTINF:4,\nb.ts\n#EXT-X-ENDLIST\n")
+	})
+	slow := func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", fmt.Sprint(len(piece)))
+		for i := 0; i < len(piece); i += 20 << 10 { // 20 KB every 50 ms: ~1 s a piece
+			w.Write(piece[i : i+20<<10])
+			w.(http.Flusher).Flush()
+			time.Sleep(50 * time.Millisecond)
+		}
+	}
+	mux.HandleFunc("/a.ts", slow)
+	mux.HandleFunc("/b.ts", slow)
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+
+	var mu sync.Mutex
+	sawSpeedBeforeAPiece := false
+	d := &Download{URL: ts.URL + "/list.m3u8", Out: filepath.Join(t.TempDir(), "out.ts"), Connections: 2,
+		OnProgress: func(p Progress) {
+			mu.Lock()
+			defer mu.Unlock()
+			if p.PiecesDone == 0 && p.Speed > 0 {
+				sawSpeedBeforeAPiece = true
+			}
+		}}
+	if _, err := d.Run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if !sawSpeedBeforeAPiece {
+		t.Error("no speed was shown until a piece had finished")
+	}
+}

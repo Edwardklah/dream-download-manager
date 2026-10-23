@@ -37,7 +37,15 @@ type Download struct {
 
 	keyMu sync.Mutex
 	keys  map[string][]byte
+
+	// received counts bytes as they arrive (pieces still downloading
+	// included), for the speed. Counting only finished pieces made the speed
+	// jump between 0 and bursts as pieces of a few MB completed together.
+	received atomic.Int64
 }
+
+// speedWindow: the speed is the average over this long, so it reads steady.
+const speedWindow = 3 * time.Second
 
 // Progress of a download. Total is an estimate until all pieces are in
 // (pieces differ in size), or -1 before the first one.
@@ -120,17 +128,25 @@ func (d *Download) Run(ctx context.Context) (Result, error) {
 		defer close(reportDone)
 		tick := time.NewTicker(250 * time.Millisecond)
 		defer tick.Stop()
-		last, lastAt := done.Load(), time.Now()
-		var speed float64
+		type sample struct {
+			at    time.Time
+			bytes int64
+		}
+		samples := []sample{{time.Now(), d.received.Load()}}
 		for {
 			select {
 			case <-stopReport:
 				return
 			case now := <-tick.C:
-				if el := now.Sub(lastAt).Seconds(); el >= 1 {
-					cur := done.Load()
-					speed = 0.6*speed + 0.4*float64(cur-last)/el
-					last, lastAt = cur, now
+				// Bytes arrived over the last few seconds.
+				samples = append(samples, sample{now, d.received.Load()})
+				for len(samples) > 2 && now.Sub(samples[0].at) > speedWindow {
+					samples = samples[1:]
+				}
+				var speed float64
+				first, last := samples[0], samples[len(samples)-1]
+				if el := last.at.Sub(first.at).Seconds(); el > 0 {
+					speed = float64(last.bytes-first.bytes) / el
 				}
 				report(speed)
 			}
@@ -333,6 +349,7 @@ func (d *Download) get(ctx context.Context, addr string, offset, length, limit i
 		n, rerr := resp.Body.Read(chunk)
 		if n > 0 {
 			watchdog.Reset(stallTimeout)
+			d.received.Add(int64(n))
 			if int64(buf.Len()+n) > limit {
 				return nil, nil, errTooBig
 			}
