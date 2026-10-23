@@ -50,13 +50,15 @@ jobs:
       # Wails v3 (and its wails3 tool) use GTK 4 and WebKitGTK 6.0; the
       # older GTK 3 set is installed too, in case a build falls back to it.
       # Without the "recommended" extras (much less to download); never
-      # waits for a question; gives up after 15 minutes rather than hanging
-      # on a slow package mirror.
+      # waits for a question. GitHub's package mirror sometimes freezes in the
+      # middle of a big file (WebKitGTK is 25 MB): a download silent for 30 s
+      # is dropped and tried again, up to 5 times, instead of waiting forever.
       - name: Linux libraries the window needs (GTK and WebKitGTK)
-        timeout-minutes: 15
+        timeout-minutes: 25
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
+          printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/80-retries
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends build-essential pkg-config \
             libgtk-4-dev libwebkitgtk-6.0-dev libgtk-3-dev libwebkit2gtk-4.1-dev
