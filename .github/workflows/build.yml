@@ -27,8 +27,8 @@ jobs:
   test:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
       - name: Go tests (engine, manager, video, bridge...)
@@ -38,19 +38,22 @@ jobs:
     needs: test
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: gui/go.mod
           cache-dependency-path: gui/go.sum
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
 
+      # Wails v3 (and its wails3 tool) use GTK 4 and WebKitGTK 6.0; the
+      # older GTK 3 set is installed too, in case a build falls back to it.
       - name: Linux libraries the window needs (GTK and WebKitGTK)
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev
+          sudo apt-get install -y build-essential pkg-config \
+            libgtk-4-dev libwebkitgtk-6.0-dev libgtk-3-dev libwebkit2gtk-4.1-dev
 
       - name: Wails and nfpm (the package builder)
         run: |
@@ -70,6 +73,22 @@ jobs:
       - name: Build the browser helper
         run: CGO_ENABLED=0 go build -trimpath -ldflags="-w -s" -o dist/linux/dlm-host ./cmd/dlm-host
 
+      # The packages must ask for the libraries the program really uses.
+      - name: Which window libraries the app uses
+        run: |
+          ldd dist/linux/dreamdm | grep -Ei 'gtk|webkit' || true
+          if ldd dist/linux/dreamdm | grep -q 'libwebkitgtk-6.0'; then
+            echo "DEB_GTK=libgtk-4-1" >> "$GITHUB_ENV"
+            echo "DEB_WEBKIT=libwebkitgtk-6.0-4" >> "$GITHUB_ENV"
+            echo "RPM_GTK=gtk4" >> "$GITHUB_ENV"
+            echo "RPM_WEBKIT=webkitgtk6.0" >> "$GITHUB_ENV"
+          else
+            echo "DEB_GTK=libgtk-3-0" >> "$GITHUB_ENV"
+            echo "DEB_WEBKIT=libwebkit2gtk-4.1-0" >> "$GITHUB_ENV"
+            echo "RPM_GTK=gtk3" >> "$GITHUB_ENV"
+            echo "RPM_WEBKIT=webkit2gtk4.1" >> "$GITHUB_ENV"
+          fi
+
       - name: Packages
         run: |
           nfpm package -f installer/linux/nfpm.yaml -p deb -t dist/
@@ -81,7 +100,7 @@ jobs:
           tar -C dist/tar -czf "dist/dreamdm-${VERSION}-linux-amd64.tar.gz" dreamdm
           ls -la dist
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: dreamdm-linux
           path: |
@@ -102,14 +121,14 @@ jobs:
     needs: test
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: gui/go.mod
           cache-dependency-path: gui/go.sum
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Wails
         run: go install github.com/wailsapp/wails/v3/cmd/wails3@${{ env.WAILS_VERSION }}
@@ -135,7 +154,7 @@ jobs:
           Pop-Location
           Get-ChildItem dist
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: dreamdm-windows
           path: dist/*.exe

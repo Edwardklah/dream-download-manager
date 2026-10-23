@@ -20,14 +20,16 @@ description: |
   catching, schedules and themes.
 license: GPL-3.0-or-later
 
+# The window libraries: set by the build from what the program links to
+# (GTK 4 + WebKitGTK 6.0 for current Wails; GTK 3 + WebKitGTK 4.1 before).
 depends:
-  - libgtk-3-0
-  - libwebkit2gtk-4.1-0
+  - ${DEB_GTK}
+  - ${DEB_WEBKIT}
 overrides:
   rpm:
     depends:
-      - gtk3
-      - webkit2gtk4.1
+      - ${RPM_GTK}
+      - ${RPM_WEBKIT}
 
 contents:
   - src: dist/linux/dreamdm
