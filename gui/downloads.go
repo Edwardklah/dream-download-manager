@@ -89,6 +89,10 @@ func (s *DownloadService) AddFromBrowser(req bridge.Request) (string, error) {
 	if video.IsVideoPage(req.URL) {
 		return "", s.OpenVideo(req)
 	}
+	// Normally it waits for Download / Later in the window (offers.go).
+	if s.manager.Settings().AskBrowser {
+		return s.offerDownload(req), nil
+	}
 	it, err := s.manager.AddWith(req.URL, manager.AddOptions{
 		Filename: req.Filename,
 		Headers:  req.Headers(),

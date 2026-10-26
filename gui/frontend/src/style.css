@@ -1000,6 +1000,20 @@ kbd {
   min-width: 0;
 }
 
+/* A browser download waiting for Download / Later: long names are cut,
+   and many at once scroll instead of pushing the list away. */
+.notice.offer .text b {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.notices {
+  max-height: 45vh;
+  overflow-y: auto;
+}
+
 .notice small {
   display: block;
   overflow: hidden;

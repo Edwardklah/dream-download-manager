@@ -358,3 +358,17 @@ func TestSpeedWhilePiecesArrive(t *testing.T) {
 		t.Error("no speed was shown until a piece had finished")
 	}
 }
+
+func TestEstimateByPlayingTime(t *testing.T) {
+	// 2 short pieces (2 s, 100 KB each) done of 2 short + 8 long (10 s):
+	// 50 KB a second over 84 s of video.
+	if got := estimateTotal(200_000, 2, 10, 4000, 84000); got != 4_200_000 {
+		t.Errorf("by playing time: %d", got)
+	}
+	if got := estimateTotal(200_000, 2, 10, 0, 0); got != 1_000_000 {
+		t.Errorf("no durations: %d", got)
+	}
+	if estimateTotal(0, 0, 10, 0, 84000) != -1 || estimateTotal(5, 10, 10, 1, 84000) != 5 {
+		t.Error("start or end")
+	}
+}

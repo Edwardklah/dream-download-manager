@@ -11,6 +11,7 @@ import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { Events } from "@wailsio/runtime";
 import { DownloadService } from "../bindings/dlmanager/gui";
 import type {
+  BrowserOffer,
   ServerLimit,
   ToolsStatus,
   ToolsUpdate,
@@ -83,6 +84,7 @@ function App() {
   const [update, setUpdate] = useState<ToolsUpdate | null>(null); // a newer yt-dlp
   const [copied, setCopied] = useState(""); // a download link you copied
   const [showWelcome, setShowWelcome] = useState(false); // the first-run welcome
+  const [offers, setOffers] = useState<BrowserOffer[]>([]); // downloads from the browser, waiting for you
 
   useEffect(() => {
     DownloadService.GetSettings().then((st) => {
@@ -97,6 +99,7 @@ function App() {
     DownloadService.QueueState().then(setQueue);
     DownloadService.WhenDone().then(setWhenDone);
     DownloadService.PendingToolsUpdate().then(setUpdate);
+    DownloadService.BrowserOffers().then((o) => setOffers(o ?? []));
     const takeCopied = () => DownloadService.TakeClipboardLink().then((l) => l && setCopied(l));
     takeCopied();
     const offs = [
@@ -104,6 +107,7 @@ function App() {
       Events.On("when-done", (ev) => setWhenDone(ev.data as WhenDoneState)),
       Events.On("tools-update", (ev) => setUpdate(ev.data as ToolsUpdate)),
       Events.On("clipboard-link", takeCopied),
+      Events.On("browser-offers", (ev) => setOffers((ev.data as BrowserOffer[]) ?? [])),
     ];
     return () => offs.forEach((off) => off());
   }, []);
@@ -279,6 +283,9 @@ function App() {
         </div>
 
         <div class="notices">
+          {offers.map((o) => (
+            <OfferCard key={o.id} offer={o} act={act} />
+          ))}
           {update?.available && <UpdateNotice update={update} dismiss={() => act(DownloadService.DismissToolsUpdate())} />}
           {copied && (
             <CopiedLink
@@ -813,6 +820,29 @@ function CopiedLink({ link, add, close }: { link: string; add: (startNow: boolea
   );
 }
 
+// A download caught in the browser, waiting for Download / Later (gui/offers.go).
+function OfferCard({ offer, act }: { offer: BrowserOffer; act: (p: Promise<unknown>) => void }) {
+  const sizeText = offer.checking ? "checking the size…" : offer.size >= 0 ? size(offer.size) : "size unknown";
+  return (
+    <div class="notice offer" role="status">
+      <div class="text">
+        <b title={offer.url}>{offer.filename}</b>
+        <small>
+          {sizeText} · <span title={offer.folder}>{offer.folder}</span>
+        </small>
+      </div>
+      <button class="primary" onClick={() => act(DownloadService.AcceptOffer(offer.id, "download"))}>
+        Download
+      </button>
+      <button class="secondary" onClick={() => act(DownloadService.AcceptOffer(offer.id, "later"))} title="Add it paused: it starts when you press play">
+        Later
+      </button>
+      <IconButton icon="folder" label="Choose where to save it" onClick={() => act(DownloadService.ChooseOfferFolder(offer.id))} />
+      <IconButton icon="close" label="Don't download it" onClick={() => act(DownloadService.DeclineOffer(offer.id))} />
+    </div>
+  );
+}
+
 // The minute before "when done" puts the computer to sleep or shuts it down.
 function Countdown({ state, cancel }: { state: WhenDoneState; cancel: () => void }) {
   const [left, setLeft] = useState(state.secondsLeft);
@@ -1270,6 +1300,15 @@ function SettingsPanel({ close, act }: { close: () => void; act: (p: Promise<unk
         <section>
           <h3>Catching links</h3>
           <Toggle
+            label="Ask before downloads from the browser start"
+            checked={s.askBrowser}
+            onChange={(v) => save({ ...s, askBrowser: v })}
+          />
+          <p class="hint">
+            A download you start in Chrome or Edge first shows its size and folder here, with Download and Later. Switch off to
+            have them start straight away.
+          </p>
+          <Toggle
             label="Offer download links I copy"
             checked={s.watchClipboard}
             onChange={(v) => save({ ...s, watchClipboard: v })}
@@ -1375,6 +1414,10 @@ const HELP: { title: string; items: [string, string][] }[] = [
       [
         "How do I connect the browser extension?",
         "Press Show the welcome again (at the bottom of Help) and go to Browser: it walks you through it and shows when it's connected. In short: type chrome://extensions (Edge: edge://extensions) in the address bar, switch on Developer mode, press Load unpacked and choose the \"extension\" folder where Dream DM is installed - the folder itself, not one inside it. \"Manifest file is missing\" means a folder inside it (like icons) was chosen: choose \"extension\" instead.",
+      ],
+      [
+        "A download from the browser didn't start.",
+        "It's waiting at the top of the window, with its size and folder: press Download, or Later to add it paused. The folder button picks where it goes. To have browser downloads start straight away, switch off \"Ask before downloads from the browser start\" in Settings.",
       ],
       [
         "Download or Start now?",

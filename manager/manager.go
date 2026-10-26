@@ -79,6 +79,10 @@ type Item struct {
 	// others), for the window's filter. Worked out, not saved.
 	Category string `json:"category"`
 
+	// KeepFolder: you chose the folder, so the file isn't sorted into a
+	// Video, Music... folder inside it.
+	KeepFolder bool `json:"keepFolder,omitempty"`
+
 	// Live details, only meaningful while running (not saved).
 	Speed       float64               `json:"speed"`
 	ETASeconds  float64               `json:"etaSeconds"`
@@ -102,6 +106,7 @@ type Settings struct {
 	WatchClipboard   bool     `json:"watchClipboard"`   // offer copied download links (the app does it)
 	Theme            string   `json:"theme"`            // the window's colours: "black", "dream", "light"...
 	Welcomed         bool     `json:"welcomed"`         // the first-run welcome has been shown
+	AskBrowser       bool     `json:"askBrowser"`       // downloads caught in the browser wait for Download / Later (the app does it)
 }
 
 // Themes the window has (gui/frontend/src/style.css).
@@ -113,7 +118,7 @@ func DefaultSettings() Settings {
 	home, _ := os.UserHomeDir()
 	return Settings{
 		MaxActive: 3, Connections: 8, Folder: filepath.Join(home, "Downloads"),
-		SortIntoFolders: true, CheckToolUpdates: true, WatchClipboard: true, Theme: "black",
+		SortIntoFolders: true, CheckToolUpdates: true, WatchClipboard: true, Theme: "black", AskBrowser: true,
 		Schedule: Schedule{Start: "00:00", Stop: "06:00"},
 	}
 }
@@ -250,7 +255,9 @@ func (m *Manager) Add(rawURL string, startNow bool) (Item, error) {
 // AddOptions are the extras a link can come with.
 type AddOptions struct {
 	StartNow bool
+	Paused   bool              // added paused ("Later"): starts when you press play
 	Filename string            // suggested name (the browser's); empty = the server's
+	Folder   string            // a folder you chose; empty = the download folder (sorted by kind)
 	Headers  map[string]string // extra request headers (cookies, referrer...)
 }
 
@@ -265,6 +272,9 @@ func (m *Manager) AddWith(rawURL string, o AddOptions) (Item, error) {
 
 	m.mu.Lock()
 	folder := m.settings.Folder
+	if o.Folder != "" {
+		folder = o.Folder
+	}
 	for _, e := range m.entries {
 		if e.URL == rawURL && e.Folder == folder && e.Status != Completed {
 			m.mu.Unlock()
@@ -275,7 +285,11 @@ func (m *Manager) AddWith(rawURL string, o AddOptions) (Item, error) {
 	e := &entry{Item: Item{
 		ID: m.nextID, URL: rawURL, Folder: folder, Status: Queued,
 		StartNow: startNow, Total: -1, ETASeconds: -1, AddedAt: time.Now(),
+		KeepFolder: o.Folder != "",
 	}, headers: o.Headers}
+	if o.Paused {
+		e.Status, e.StartNow = Paused, false
+	}
 	if o.Filename != "" {
 		e.Filename = engine.SanitizeFilename(o.Filename)
 	}
@@ -525,7 +539,7 @@ func (m *Manager) run(e *entry, job func(context.Context) (string, error), ctx c
 		m.mu.Lock()
 		sort := m.settings.SortIntoFolders
 		m.mu.Unlock()
-		if sort {
+		if sort && !e.KeepFolder { // a folder you chose is kept as it is
 			path = sortIntoCategory(path)
 		}
 	}

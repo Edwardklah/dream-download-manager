@@ -460,3 +460,48 @@ func TestBrowserDetailsAreUsedAndKept(t *testing.T) {
 		t.Errorf("downloads.json is readable by others: %v", st.Mode().Perm())
 	}
 }
+
+// "Later": added paused, it doesn't start until you press play.
+func TestAddPaused(t *testing.T) {
+	fs, ts := newFileServer(t, 0)
+	m := newManager(t, t.TempDir(), Settings{MaxActive: 3, Connections: 1})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	m.Start(ctx)
+
+	data := fs.add("later.bin", 200_000)
+	it, err := m.AddWith(ts.URL+"/later.bin", AddOptions{Paused: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(150 * time.Millisecond)
+	if s := status(m, it.ID); s != Paused {
+		t.Fatalf("added paused, but it's %s", s)
+	}
+	m.Resume(it.ID)
+	waitFor(t, "finished after play", func() bool { return status(m, it.ID) == Completed })
+	done, _ := m.Get(it.ID)
+	checkFile(t, done.SavedPath, data)
+}
+
+// A folder you chose is used as it is: not sorted into Programs etc.
+func TestChosenFolderIsKept(t *testing.T) {
+	fs, ts := newFileServer(t, 0)
+	dir := t.TempDir()
+	m := newManager(t, dir, Settings{MaxActive: 3, Connections: 1, SortIntoFolders: true})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	m.Start(ctx)
+
+	fs.add("tool.exe", 100_000)
+	chosen := filepath.Join(dir, "my folder")
+	it, err := m.AddWith(ts.URL+"/tool.exe", AddOptions{Folder: chosen})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "finished", func() bool { return status(m, it.ID) == Completed })
+	done, _ := m.Get(it.ID)
+	if want := filepath.Join(chosen, "tool.exe"); done.SavedPath != want {
+		t.Errorf("saved to %s, want %s", done.SavedPath, want)
+	}
+}

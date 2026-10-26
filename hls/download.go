@@ -97,11 +97,17 @@ func (d *Download) Run(ctx context.Context) (Result, error) {
 	// What's already there (from an earlier, interrupted run)?
 	var done atomic.Int64
 	var piecesDone atomic.Int32
+	var doneMs atomic.Int64 // playing time of the finished pieces, for the size estimate
+	var totalMs int64
+	for _, s := range p.Segments {
+		totalMs += pieceMs(s)
+	}
 	var todo []int
 	for i := range p.Segments {
 		if st, err := os.Stat(piecePath(dir, i)); err == nil {
 			done.Add(st.Size())
 			piecesDone.Add(1)
+			doneMs.Add(pieceMs(p.Segments[i]))
 		} else {
 			todo = append(todo, i)
 		}
@@ -113,13 +119,7 @@ func (d *Download) Run(ctx context.Context) (Result, error) {
 			return
 		}
 		n, pd := done.Load(), int(piecesDone.Load())
-		total := int64(-1)
-		if pd > 0 {
-			total = n * int64(len(p.Segments)) / int64(pd) // estimate from the average piece
-		}
-		if pd == len(p.Segments) {
-			total = n
-		}
+		total := estimateTotal(n, pd, len(p.Segments), doneMs.Load(), totalMs)
 		d.OnProgress(Progress{Done: n, Total: total, Pieces: len(p.Segments), PiecesDone: pd, Speed: speed})
 	}
 	stopReport := make(chan struct{})
@@ -212,6 +212,27 @@ func (d *Download) Run(ctx context.Context) (Result, error) {
 	}
 	os.RemoveAll(dir)
 	return res, nil
+}
+
+// pieceMs is a piece's playing time in milliseconds (#EXTINF).
+func pieceMs(s Segment) int64 { return int64(s.Duration * 1000) }
+
+// estimateTotal guesses the finished size from the pieces done so far: bytes
+// per second of video times the video's length. Pieces often differ in
+// length (short ones at the start are common), so going by the average piece
+// read low early on and kept growing. Without durations in the playlist it
+// falls back to the average piece. -1 before the first piece.
+func estimateTotal(done int64, piecesDone, pieces int, doneMs, totalMs int64) int64 {
+	switch {
+	case piecesDone <= 0:
+		return -1
+	case piecesDone >= pieces:
+		return done
+	case doneMs > 0 && totalMs > 0:
+		return done * totalMs / doneMs
+	default:
+		return done * int64(pieces) / int64(piecesDone)
+	}
 }
 
 // playlist fetches the playlist; for a master playlist, the best quality's.
