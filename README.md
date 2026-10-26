@@ -36,9 +36,11 @@ files are in `/opt/dreamdm/extension`. On GNOME, the tray icon needs the
 The Linux and Windows builds are made by GitHub Actions
 (`.github/workflows/build.yml`) on every push.
 
-To build the Windows setup file yourself: `devloop` actions `app-build`, then
-`app-installer` (needs NSIS: `winget install -e --id NSIS.NSIS`). The script
-is `installer/windows/DreamDM.nsi`; the file lands in `dist/`.
+To build the Windows setup file yourself: run `wails3 build` in `gui/` and
+`go build -ldflags="-s -w" -o gui/bin/dlm-host.exe ./cmd/dlm-host` from this
+folder, then `makensis /DVERSION=<version> DreamDM.nsi` in
+`installer/windows/` (NSIS: `winget install -e --id NSIS.NSIS`). The file
+lands in `dist/`.
 
 ## Try it
 
@@ -63,18 +65,6 @@ To build a standalone program instead:
 go build -o dl.exe ./cmd/dl
 .\dl.exe https://example.com/somefile.zip
 ```
-
-## Working with Claude (devloop)
-
-`devloop.ps1` lets Claude run tests and test downloads on this PC and read the
-output directly. Start it once in its own PowerShell window and leave it open:
-
-```
-.\devloop.ps1
-```
-
-It only runs a fixed list of actions (test, vet, build, version, test downloads
-into `.dev\downloads`, list/empty that folder). Ctrl+C stops it.
 
 ## Tests
 
@@ -116,7 +106,6 @@ dlmanager/
                      download managers (IDM, FDM, ours) on the same situations
   learn/             Go notes, one per stage
   installer/windows/ the Windows setup script (NSIS) and its picture and licence page
-  devloop.ps1        lets Claude run project commands on this PC (see above)
 ```
 
 ## Licence
