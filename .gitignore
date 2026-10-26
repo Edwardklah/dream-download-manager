@@ -11,3 +11,4 @@ gui/frontend/bindings/
 *.syso
 *.exe
 *.exe~
+devloop.ps1

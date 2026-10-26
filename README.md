@@ -25,7 +25,18 @@ Run `DreamDM-Setup-<version>.exe`. It asks whether to install just for you
 (no administrator needed) or for everyone on the PC. Uninstall from
 Settings > Apps; your downloaded files are never removed.
 
-To build the setup file yourself: `devloop` actions `app-build`, then
+## Install (Linux)
+
+Ubuntu, Debian, Mint: `sudo apt install ./dreamdm_<version>_amd64.deb`.
+Fedora: `sudo dnf install ./dreamdm-<version>.x86_64.rpm`. It appears in the
+app menu as Dream Download Manager (or run `dreamdm`). The browser extension's
+files are in `/opt/dreamdm/extension`. On GNOME, the tray icon needs the
+"AppIndicator" extension; without it, open the app from the menu.
+
+The Linux and Windows builds are made by GitHub Actions
+(`.github/workflows/build.yml`) on every push.
+
+To build the Windows setup file yourself: `devloop` actions `app-build`, then
 `app-installer` (needs NSIS: `winget install -e --id NSIS.NSIS`). The script
 is `installer/windows/DreamDM.nsi`; the file lands in `dist/`.
 
