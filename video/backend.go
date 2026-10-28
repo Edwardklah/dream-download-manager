@@ -7,7 +7,10 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
+	"sync"
+	"time"
 
 	"dlmanager/mkv"
 	"dlmanager/mpegts"
@@ -45,19 +48,42 @@ var ErrNoTools = errors.New("video downloads need yt-dlp: download it in Setting
 // Look asks about a page (for the quality picker). headers are the
 // browser's (cookies, user agent), if the page came from the browser: some
 // sites only show videos to logged-in users.
+//
+// The answer is kept for a few minutes (see recent), so the download that
+// usually follows straight away doesn't ask yt-dlp all over again.
 func (b Backend) Look(ctx context.Context, pageURL string, headers map[string]string) (*Info, []Choice, error) {
+	info, err := b.inspect(ctx, pageURL, headers)
+	if err != nil {
+		return nil, nil, err
+	}
+	recent.keep(lookKey(pageURL, headers), info)
+	return info, choicesFor(info), nil
+}
+
+// inspect asks yt-dlp about a page.
+func (b Backend) inspect(ctx context.Context, pageURL string, headers map[string]string) (*Info, error) {
 	if !b.Tools.Installed() {
-		return nil, nil, ErrNoTools
+		return nil, ErrNoTools
 	}
 	o, cleanup, err := b.options(pageURL, headers)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	defer cleanup()
-	info, err := Inspect(ctx, pageURL, o)
-	if err != nil {
-		return nil, nil, err
+	return Inspect(ctx, pageURL, o)
+}
+
+// latest is the page's look-up from the last few minutes if there is one
+// (used once: taken out of recent), or a fresh one.
+func (b Backend) latest(ctx context.Context, pageURL string, headers map[string]string) (*Info, error) {
+	if info := recent.take(lookKey(pageURL, headers)); info != nil {
+		return info, nil
 	}
+	return b.inspect(ctx, pageURL, headers)
+}
+
+// choicesFor: the qualities offered for a looked-up video.
+func choicesFor(info *Info) []Choice {
 	choices := Choices(info)
 	if len(choices) == 0 {
 		// Nothing we can download ourselves - formats only yt-dlp handles
@@ -71,7 +97,66 @@ func (b Backend) Look(ctx context.Context, pageURL string, headers map[string]st
 			choices[0].Size, choices[0].SizeApprox = best.Size()
 		}
 	}
-	return info, choices, nil
+	return choices
+}
+
+// recent keeps each page's latest look-up for a few minutes. Looking a
+// video up costs a full yt-dlp run (8-20 s for YouTube); without this, the
+// quality picker, the download and the subtitles each paid it. Stream
+// addresses last hours, so minutes-old ones are safe. Each look-up is used
+// once (take), so a retry after "403 Forbidden", or a resume later, always
+// asks afresh.
+var recent = &lookCache{m: map[string]cachedLook{}}
+
+const recentFor = 5 * time.Minute
+
+type cachedLook struct {
+	info *Info
+	at   time.Time
+}
+
+type lookCache struct {
+	mu sync.Mutex
+	m  map[string]cachedLook
+}
+
+func (c *lookCache) keep(key string, info *Info) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	now := time.Now()
+	for k, v := range c.m {
+		if now.Sub(v.at) > recentFor {
+			delete(c.m, k)
+		}
+	}
+	c.m[key] = cachedLook{info, now}
+}
+
+func (c *lookCache) take(key string) *Info {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	v, ok := c.m[key]
+	delete(c.m, key)
+	if !ok || time.Since(v.at) > recentFor {
+		return nil
+	}
+	return v.info
+}
+
+// lookKey: a look-up only counts for the same page with the same browser
+// headers (cookies can change what a site shows).
+func lookKey(pageURL string, headers map[string]string) string {
+	keys := make([]string, 0, len(headers))
+	for k := range headers {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var b strings.Builder
+	b.WriteString(pageURL)
+	for _, k := range keys {
+		b.WriteString("\x00" + k + "=" + headers[k])
+	}
+	return b.String()
 }
 
 // YtDlpPrefix marks a choice that yt-dlp downloads itself.
@@ -100,14 +185,16 @@ func completeExt(f *Format) string {
 	return "mp4"
 }
 
-// Resolve looks the page up again and returns the streams of the chosen
-// quality. Done at every start, because stream addresses expire after a few
-// hours: a paused video resumes with fresh ones.
+// Resolve returns the streams of the chosen quality, from the look-up the
+// quality picker just did if it's minutes old, or else a fresh one: stream
+// addresses expire after a few hours, so a paused video resumes with fresh
+// ones.
 func (b Backend) Resolve(ctx context.Context, pageURL, choiceID string, headers map[string]string) (*Plan, error) {
-	info, choices, err := b.Look(ctx, pageURL, headers)
+	info, err := b.latest(ctx, pageURL, headers)
 	if err != nil {
 		return nil, err
 	}
+	choices := choicesFor(info)
 	c, ok := Find(choices, choiceID)
 	if !ok {
 		return nil, fmt.Errorf("that quality (%s) isn't offered any more", choiceID)

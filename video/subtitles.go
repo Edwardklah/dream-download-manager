@@ -101,19 +101,12 @@ func SubtitleFormats(info *Info, id string) []SubFormat {
 	return info.Subtitles[id]
 }
 
-// SubtitleFormats looks a page up and returns the files subtitle id comes in
+// SubtitleFormats looks a page up (or uses the picker's minutes-old
+// look-up) and returns the files subtitle id comes in
 // (none, if the page doesn't offer it any more: SaveSubtitle then asks
 // yt-dlp).
 func (b Backend) SubtitleFormats(ctx context.Context, pageURL, id string, headers map[string]string) ([]SubFormat, error) {
-	if !b.Tools.Installed() {
-		return nil, ErrNoTools
-	}
-	o, cleanup, err := b.options(pageURL, headers)
-	if err != nil {
-		return nil, err
-	}
-	defer cleanup()
-	info, err := Inspect(ctx, pageURL, o)
+	info, err := b.latest(ctx, pageURL, headers)
 	if err != nil {
 		return nil, err
 	}

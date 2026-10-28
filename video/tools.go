@@ -80,7 +80,11 @@ func (t Tools) Installed() bool {
 
 // Options for Inspect, using these tools.
 func (t Tools) Options() Options {
-	o := Options{YtDlp: t.YtDlp()}
+	// yt-dlp keeps YouTube's player script and the puzzles it solved in
+	// its cache; a folder of our own next to the tools makes sure that
+	// cache is there and kept. Measured: a look-up went from ~20 s to ~8 s
+	// once the script was cached.
+	o := Options{YtDlp: t.YtDlp(), CacheDir: filepath.Join(filepath.Dir(t.Dir), "cache")}
 	// Deno is used automatically if installed. Node and QuickJS must be
 	// switched on (yt-dlp's caution: they're less locked down than Deno).
 	if node, err := exec.LookPath("node"); err == nil {

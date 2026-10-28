@@ -105,6 +105,7 @@ type Options struct {
 	JSArgs    []string
 	Cookies   string // a cookies.txt file, for videos that need you logged in
 	UserAgent string // the browser's, if known
+	CacheDir  string // yt-dlp's cache (YouTube's player script, solved puzzles)
 	Timeout   time.Duration
 }
 
@@ -156,6 +157,9 @@ func (o Options) args() []string {
 	}
 	if o.UserAgent != "" {
 		args = append(args, "--user-agent", o.UserAgent)
+	}
+	if o.CacheDir != "" {
+		args = append(args, "--cache-dir", o.CacheDir)
 	}
 	return args
 }

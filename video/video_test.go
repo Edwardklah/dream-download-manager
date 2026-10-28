@@ -481,3 +481,24 @@ func TestToolAssets(t *testing.T) {
 		}
 	}
 }
+
+// The picker's look-up is reused once by the download, then asked afresh.
+func TestRecentLookUpUsedOnce(t *testing.T) {
+	c := &lookCache{m: map[string]cachedLook{}}
+	info := &Info{Title: "x"}
+	k := lookKey("https://example.com/v", map[string]string{"Cookie": "a=1", "User-Agent": "UA"})
+	c.keep(k, info)
+	if c.take(lookKey("https://example.com/v", nil)) != nil {
+		t.Error("used for a request without the browser's cookies")
+	}
+	if c.take(k) != info {
+		t.Fatal("not reused")
+	}
+	if c.take(k) != nil {
+		t.Error("used twice")
+	}
+	c.m[k] = cachedLook{info, time.Now().Add(-recentFor - time.Second)}
+	if c.take(k) != nil {
+		t.Error("too old, but used")
+	}
+}
