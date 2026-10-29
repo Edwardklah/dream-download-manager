@@ -590,6 +590,7 @@ func (d *Download) transfer(ctx context.Context, partPath string) error {
 				return &diskError{err}
 			}
 			d.downloaded.Add(int64(n))
+			GiveWay(ctx, n) // a video look-up is running: let it have the line
 			d.reportProgress(1, 1, nil)
 		}
 		if readErr == io.EOF {

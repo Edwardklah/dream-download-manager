@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"dlmanager/engine"
 	"dlmanager/mkv"
 	"dlmanager/mpegts"
 	"dlmanager/mux"
@@ -52,7 +53,13 @@ var ErrNoTools = errors.New("video downloads need yt-dlp: download it in Setting
 // The answer is kept for a few minutes (see recent), so the download that
 // usually follows straight away doesn't ask yt-dlp all over again.
 func (b Backend) Look(ctx context.Context, pageURL string, headers map[string]string) (*Info, []Choice, error) {
-	info, err := b.inspect(ctx, pageURL, headers)
+	return b.LookSteps(ctx, pageURL, headers, nil)
+}
+
+// LookSteps is Look, telling steps what yt-dlp is doing meanwhile (nil:
+// nothing to tell).
+func (b Backend) LookSteps(ctx context.Context, pageURL string, headers map[string]string, steps func(string)) (*Info, []Choice, error) {
+	info, err := b.inspect(ctx, pageURL, headers, steps)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -61,7 +68,7 @@ func (b Backend) Look(ctx context.Context, pageURL string, headers map[string]st
 }
 
 // inspect asks yt-dlp about a page.
-func (b Backend) inspect(ctx context.Context, pageURL string, headers map[string]string) (*Info, error) {
+func (b Backend) inspect(ctx context.Context, pageURL string, headers map[string]string, steps func(string)) (*Info, error) {
 	if !b.Tools.Installed() {
 		return nil, ErrNoTools
 	}
@@ -70,6 +77,10 @@ func (b Backend) inspect(ctx context.Context, pageURL string, headers map[string
 		return nil, err
 	}
 	defer cleanup()
+	o.Steps = steps
+	// Running downloads slow down meanwhile, so the look-up gets the line
+	// (engine.Yield): with them at full speed it took 45 s instead of ~8.
+	defer engine.Yield()()
 	return Inspect(ctx, pageURL, o)
 }
 
@@ -79,7 +90,7 @@ func (b Backend) latest(ctx context.Context, pageURL string, headers map[string]
 	if info := recent.take(lookKey(pageURL, headers)); info != nil {
 		return info, nil
 	}
-	return b.inspect(ctx, pageURL, headers)
+	return b.inspect(ctx, pageURL, headers, nil)
 }
 
 // choicesFor: the qualities offered for a looked-up video.

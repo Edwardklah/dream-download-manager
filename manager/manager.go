@@ -104,6 +104,8 @@ type Settings struct {
 	Schedule         Schedule `json:"schedule"`         // hold the queue until a set time (schedule.go)
 	CheckToolUpdates bool     `json:"checkToolUpdates"` // look for newer yt-dlp now and then (the app does it)
 	WatchClipboard   bool     `json:"watchClipboard"`   // offer copied download links (the app does it)
+	PrefetchVideos   bool     `json:"prefetchVideos"`   // look up copied video links straight away (uses data)
+	CheckAppUpdates  bool     `json:"checkAppUpdates"`  // offer new versions of Dream DM
 	Theme            string   `json:"theme"`            // the window's colours: "black", "dream", "light"...
 	Welcomed         bool     `json:"welcomed"`         // the first-run welcome has been shown
 	AskBrowser       bool     `json:"askBrowser"`       // downloads caught in the browser wait for Download / Later (the app does it)
@@ -118,7 +120,7 @@ func DefaultSettings() Settings {
 	home, _ := os.UserHomeDir()
 	return Settings{
 		MaxActive: 3, Connections: 8, Folder: filepath.Join(home, "Downloads"),
-		SortIntoFolders: true, CheckToolUpdates: true, WatchClipboard: true, Theme: "black", AskBrowser: true,
+		SortIntoFolders: true, CheckToolUpdates: true, CheckAppUpdates: true, WatchClipboard: true, Theme: "black", AskBrowser: true,
 		Schedule: Schedule{Start: "00:00", Stop: "06:00"},
 	}
 }

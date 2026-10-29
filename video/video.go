@@ -10,11 +10,13 @@
 package video
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -107,6 +109,10 @@ type Options struct {
 	UserAgent string // the browser's, if known
 	CacheDir  string // yt-dlp's cache (YouTube's player script, solved puzzles)
 	Timeout   time.Duration
+
+	// Steps, if set, is told what yt-dlp is doing while it looks the page
+	// up ("Reading YouTube's player"), for a progress line.
+	Steps func(step string)
 }
 
 // ErrNotVideo means yt-dlp found no video at that address.
@@ -120,6 +126,9 @@ func Inspect(ctx context.Context, pageURL string, o Options) (*Info, error) {
 	ctx, cancel := context.WithTimeout(ctx, o.Timeout)
 	defer cancel()
 
+	if o.Steps != nil {
+		return inspectWithSteps(ctx, pageURL, o)
+	}
 	args := []string{
 		"-J",            // everything about the video, as JSON
 		"--no-playlist", // a video in a playlist: just that video
@@ -147,6 +156,97 @@ func Inspect(ctx context.Context, pageURL string, o Options) (*Info, error) {
 		return nil, ErrNotVideo
 	}
 	return &info, nil
+}
+
+// inspectWithSteps is Inspect, reporting yt-dlp's steps as it goes. -J
+// keeps yt-dlp quiet until it's done, so instead it writes the same answer
+// to a file (--print-to-file "%()j") while its usual messages ("[youtube]
+// abc: Downloading player 096efeec") come out one by one. --skip-download:
+// nothing is downloaded. A playlist page isn't looked into (--flat-playlist,
+// --playlist-end 1): like -J, it's "no video found".
+func inspectWithSteps(ctx context.Context, pageURL string, o Options) (*Info, error) {
+	tmp, err := os.CreateTemp("", "dlm-look-*.json")
+	if err != nil {
+		return nil, err
+	}
+	path := tmp.Name()
+	tmp.Close()
+	os.Remove(path) // yt-dlp creates it; an empty file left here would read as an answer
+	defer os.Remove(path)
+
+	args := []string{
+		"--skip-download", "--print-to-file", "%()j", path,
+		"--no-playlist", "--flat-playlist", "--playlist-end", "1",
+		"--no-warnings", "--no-progress", "--newline",
+		"--ignore-config",
+	}
+	args = append(args, o.args()...)
+	args = append(args, "--", pageURL)
+
+	cmd := exec.CommandContext(ctx, o.YtDlp, args...)
+	hideWindow(cmd)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+	sc := bufio.NewScanner(out)
+	last := ""
+	for sc.Scan() {
+		if step := stepText(sc.Text()); step != "" && step != last {
+			last = step
+			o.Steps(step)
+		}
+	}
+	if err := cmd.Wait(); err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return nil, errors.New("the site took too long to answer")
+		}
+		return nil, ytdlpError(stderr.String(), err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil || len(bytes.TrimSpace(data)) == 0 {
+		return nil, ErrNotVideo // nothing printed: a playlist, or no video
+	}
+	if i := bytes.IndexByte(data, '\n'); i >= 0 && i < len(data)-1 {
+		data = data[:i] // one line per entry; only the first matters
+	}
+	var info Info
+	if err := json.Unmarshal(data, &info); err != nil {
+		return nil, fmt.Errorf("couldn't read yt-dlp's answer: %w", err)
+	}
+	if info.Type == "playlist" || info.Type == "url" || len(info.Formats) == 0 {
+		return nil, ErrNotVideo
+	}
+	return &info, nil
+}
+
+// stepText turns a line of yt-dlp's output into a step to show, or "".
+func stepText(line string) string {
+	if !strings.HasPrefix(line, "[") {
+		return ""
+	}
+	switch l := strings.ToLower(line); {
+	case strings.Contains(l, "extracting url"), strings.Contains(l, "downloading webpage"):
+		return "Opening the page"
+	case strings.Contains(l, "solving js challenges"):
+		return "Solving YouTube's check"
+	case strings.Contains(l, ": downloading player "):
+		return "Reading YouTube's player"
+	case strings.Contains(l, "api json"):
+		return "Asking for the video's formats"
+	case strings.Contains(l, "m3u8 information"), strings.Contains(l, "mpd manifest"):
+		return "Listing the qualities"
+	case strings.HasPrefix(l, "[info]"):
+		return "Almost done"
+	case strings.Contains(l, ": downloading "):
+		return "Reading the page"
+	}
+	return ""
 }
 
 // args are the options' yt-dlp arguments.

@@ -11,6 +11,7 @@ import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { Events } from "@wailsio/runtime";
 import { DownloadService } from "../bindings/dlmanager/gui";
 import type {
+  AppUpdate,
   BrowserOffer,
   ServerLimit,
   ToolsStatus,
@@ -82,6 +83,7 @@ function App() {
   const [queue, setQueue] = useState<QueueState | null>(null); // the scheduler
   const [whenDone, setWhenDone] = useState<WhenDoneState | null>(null);
   const [update, setUpdate] = useState<ToolsUpdate | null>(null); // a newer yt-dlp
+  const [appUpdate, setAppUpdate] = useState<AppUpdate | null>(null); // a newer Dream DM
   const [copied, setCopied] = useState(""); // a download link you copied
   const [showWelcome, setShowWelcome] = useState(false); // the first-run welcome
   const [offers, setOffers] = useState<BrowserOffer[]>([]); // downloads from the browser, waiting for you
@@ -99,6 +101,7 @@ function App() {
     DownloadService.QueueState().then(setQueue);
     DownloadService.WhenDone().then(setWhenDone);
     DownloadService.PendingToolsUpdate().then(setUpdate);
+    DownloadService.PendingAppUpdate().then(setAppUpdate);
     DownloadService.BrowserOffers().then((o) => setOffers(o ?? []));
     const takeCopied = () => DownloadService.TakeClipboardLink().then((l) => l && setCopied(l));
     takeCopied();
@@ -106,6 +109,7 @@ function App() {
       Events.On("queue-state", (ev) => setQueue(ev.data as QueueState)),
       Events.On("when-done", (ev) => setWhenDone(ev.data as WhenDoneState)),
       Events.On("tools-update", (ev) => setUpdate(ev.data as ToolsUpdate)),
+      Events.On("app-update", (ev) => setAppUpdate(ev.data as AppUpdate)),
       Events.On("clipboard-link", takeCopied),
       Events.On("browser-offers", (ev) => setOffers((ev.data as BrowserOffer[]) ?? [])),
     ];
@@ -286,6 +290,7 @@ function App() {
           {offers.map((o) => (
             <OfferCard key={o.id} offer={o} act={act} />
           ))}
+          {appUpdate?.available && <AppUpdateNotice update={appUpdate} act={act} />}
           {update?.available && <UpdateNotice update={update} dismiss={() => act(DownloadService.DismissToolsUpdate())} />}
           {copied && (
             <CopiedLink
@@ -795,6 +800,108 @@ function UpdateNotice({ update, dismiss }: { update: ToolsUpdate; dismiss: () =>
   );
 }
 
+// Settings: this version, and checking for new ones.
+function AppVersionSection({
+  s,
+  save,
+  act,
+}: {
+  s: Settings;
+  save: (s: Settings) => void;
+  act: (p: Promise<unknown>) => void;
+}) {
+  const [version, setVersion] = useState("");
+  const [checking, setChecking] = useState(false);
+  const [result, setResult] = useState("");
+  useEffect(() => {
+    DownloadService.AppVersion().then(setVersion);
+  }, []);
+  return (
+    <section>
+      <h3>Dream DM updates</h3>
+      <p class="hint">You have version {version}.</p>
+      <Toggle
+        label="Tell me when there's a new version"
+        checked={s.checkAppUpdates}
+        onChange={(v) => save({ ...s, checkAppUpdates: v })}
+      />
+      <p class="hint">
+        A tiny check, about once a day. A new version (about 6 MB) is only downloaded when you press Update now.
+      </p>
+      <div class="row-buttons">
+        <button
+          disabled={checking}
+          onClick={() => {
+            setChecking(true);
+            setResult("");
+            act(
+              DownloadService.CheckAppUpdateNow().then((u) => {
+                setChecking(false);
+                setResult(
+                  u.error
+                    ? u.error
+                    : u.available
+                      ? `Version ${u.latest} is available: see the notice at the top of the list.`
+                      : "You have the latest version.",
+                );
+              }),
+            );
+          }}
+        >
+          {checking ? "Checking…" : "Check now"}
+        </button>
+        {result && <span class="hint">{result}</span>}
+      </div>
+    </section>
+  );
+}
+
+// A newer Dream DM. On Windows, Update now downloads the setup (~6 MB),
+// checks it, installs it and reopens the app; on Linux it links to the
+// release, for the new package.
+function AppUpdateNotice({ update, act }: { update: AppUpdate; act: (p: Promise<unknown>) => void }) {
+  const pct = update.total > 0 ? Math.round((update.done / update.total) * 100) : 0;
+  return (
+    <div class="notice" role="status">
+      <div class="text">
+        <b>Dream DM {update.latest} is available</b> (you have {update.current}).
+        {update.busy && (
+          <small>
+            {update.total > 0 && update.done >= update.total
+              ? "Installing - Dream DM will close and open again in a moment."
+              : `Downloading the update: ${size(update.done)}${update.total > 0 ? ` of ${size(update.total)} (${pct}%)` : ""}`}
+          </small>
+        )}
+        {update.error && <small class="error">{update.error}</small>}
+        {!update.busy && !update.canInstall && !update.error && (
+          <small>Download the new package from the release page and install it like the first time.</small>
+        )}
+      </div>
+      {update.canInstall ? (
+        <button class="primary" disabled={update.busy} onClick={() => act(DownloadService.InstallAppUpdate())}>
+          {update.busy ? "Updating…" : update.error ? "Try again" : "Update now"}
+        </button>
+      ) : (
+        <button class="primary" onClick={() => act(DownloadService.OpenAppUpdatePage())}>
+          Download
+        </button>
+      )}
+      {!update.busy && (
+        <>
+          {update.canInstall && (
+            <button class="secondary" onClick={() => act(DownloadService.OpenAppUpdatePage())}>
+              What's new
+            </button>
+          )}
+          <button class="secondary" onClick={() => act(DownloadService.DismissAppUpdate())}>
+            Later
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 // A download link you copied somewhere.
 function CopiedLink({ link, add, close }: { link: string; add: (startNow: boolean) => void; close: () => void }) {
   let host = "";
@@ -893,10 +1000,18 @@ function VideoPicker({
   const [name, setName] = useState(""); // the file's name, editable
   const [subtitle, setSubtitle] = useState(""); // a subtitle language to save too
   const [attempt, setAttempt] = useState(0);
+  const [step, setStep] = useState(""); // what yt-dlp is doing, while it looks
 
   useEffect(() => {
     setLook(null);
     setError("");
+    setStep("");
+    // A copied link may be half looked-up already: show where it's at.
+    DownloadService.VideoLookupStep(url).then((st) => st && setStep(st));
+    const off = Events.On("video-step", (ev) => {
+      const d = ev.data as { url: string; step: string };
+      if (d.url === url) setStep(d.step);
+    });
     DownloadService.LookUpVideo(url)
       .then((l) => {
         setLook(l);
@@ -905,6 +1020,7 @@ function VideoPicker({
         setSubtitle(preferredSubtitle(l.subtitles ?? []));
       })
       .catch((e) => setError(e?.message ?? String(e)));
+    return off;
   }, [url, attempt]);
 
   useEffect(() => {
@@ -941,6 +1057,7 @@ function VideoPicker({
             <span class="spinner" aria-hidden="true" />
             <div>
               Looking up the video…
+              {step && <span class="step">{step}…</span>}
               <small>{url}</small>
             </div>
           </div>
@@ -1318,6 +1435,15 @@ function SettingsPanel({ close, act }: { close: () => void; act: (p: Promise<unk
             to download it. Web page addresses are left alone.
           </p>
           <Toggle
+            label="Look up video links I copy straight away"
+            checked={s.prefetchVideos}
+            onChange={(v) => save({ ...s, prefetchVideos: v })}
+          />
+          <p class="hint">
+            Copy a YouTube (or other video site) link, and its qualities are found in the background, so they're ready when you
+            paste it here. Uses about 4 MB of data for each link you copy, even ones you don't download.
+          </p>
+          <Toggle
             label={onWindows ? "Start with Windows" : "Start when I sign in"}
             checked={startup}
             onChange={(v) => act(DownloadService.SetStartWithSystem(v).then(() => setStartup(v)))}
@@ -1342,6 +1468,8 @@ function SettingsPanel({ close, act }: { close: () => void; act: (p: Promise<unk
           />
           <p class="hint">A tiny check, at most once a week. Updates are only downloaded when you say so.</p>
         </section>
+
+        <AppVersionSection s={s} save={save} act={act} />
 
         <section>
           <h3>Servers that limit connections</h3>

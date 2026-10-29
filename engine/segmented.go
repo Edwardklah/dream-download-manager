@@ -933,6 +933,7 @@ func (d *Download) fetchSegment(ctx context.Context, file *os.File, seg *segment
 				return &diskError{err}
 			}
 			d.downloaded.Add(written)
+			GiveWay(ctx, n) // a video look-up is running: let it have the line
 			if complete {
 				if resp.ContentLength >= 0 {
 					_, end := seg.position()
@@ -979,6 +980,10 @@ func newSlowDetector() *slowDetector { return &slowDetector{sampleStart: time.No
 
 // tooSlow is called after every read with the number of bytes it returned.
 func (s *slowDetector) tooSlow(n int) bool {
+	if Yielding() { // slowed on purpose (see Yield): start measuring afresh
+		s.sampleStart, s.sampleBytes, s.lowSince = time.Now(), 0, time.Time{}
+		return false
+	}
 	s.sampleBytes += n
 	el := time.Since(s.sampleStart)
 	if el < slowSampleEvery {

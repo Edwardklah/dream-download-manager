@@ -9,6 +9,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -64,12 +65,45 @@ func main() {
 		fmt.Printf("look-up %d: %v  (%q, %d formats)\n", i, el, info.Title, len(info.Formats))
 	}
 
-	// With a cache folder of our own, twice: does the second run skip
-	// downloading YouTube's player script?
-	cache := filepath.Join(cfg, "dlmanager", "cache")
-	for i := 1; i <= 2; i++ {
-		fmt.Printf("\n--- step by step, cache in %s, run %d ---\n", cache, i)
-		verbose(t.YtDlp(), o.JSArgs, page, "--cache-dir", cache)
+	// -J (as the app does it now) prints nothing until it's done. Printing
+	// the same answer to a file instead lets yt-dlp report its steps as it
+	// goes, for a progress line. Same answer? Same time?
+	tmp := filepath.Join(os.TempDir(), "vtime-info.json")
+	for round := 1; round <= 2; round++ {
+		args := append([]string{"-J", "--no-playlist", "--no-warnings", "--no-progress", "--ignore-config"}, o.JSArgs...)
+		args = append(args, "--", page)
+		start := time.Now()
+		outJ, err := exec.Command(t.YtDlp(), args...).Output()
+		fmt.Printf("round %d, -J:      %6.2fs  %d KB, err %v\n", round, time.Since(start).Seconds(), len(outJ)>>10, err)
+
+		os.Remove(tmp)
+		args = append([]string{"--skip-download", "--no-playlist", "--no-warnings", "--no-progress", "--ignore-config",
+			"--print-to-file", "%()j", tmp}, o.JSArgs...)
+		args = append(args, "--", page)
+		cmd := exec.Command(t.YtDlp(), args...)
+		pipe, _ := cmd.StdoutPipe()
+		start = time.Now()
+		cmd.Start()
+		sc := bufio.NewScanner(pipe)
+		for sc.Scan() {
+			fmt.Printf("      %6.2fs  %s\n", time.Since(start).Seconds(), sc.Text())
+		}
+		err = cmd.Wait()
+		outF, _ := os.ReadFile(tmp)
+		fmt.Printf("round %d, to file: %6.2fs  %d KB, err %v\n", round, time.Since(start).Seconds(), len(outF)>>10, err)
+		var a, b map[string]json.RawMessage
+		json.Unmarshal(outJ, &a)
+		json.Unmarshal(outF, &b)
+		for k := range a {
+			if _, ok := b[k]; !ok {
+				fmt.Println("   missing from the file:", k)
+			}
+		}
+		for _, k := range []string{"formats", "automatic_captions", "subtitles", "title", "duration"} {
+			if len(a[k]) != len(b[k]) {
+				fmt.Printf("   %s differs: %d vs %d bytes\n", k, len(a[k]), len(b[k]))
+			}
+		}
 	}
 }
 

@@ -38,6 +38,8 @@ type videoState struct {
 	browserHeaders map[string]map[string]string
 	// What the button told us about each page (tab title, embedded player...).
 	hints map[string]bridge.Request
+
+	lookState // look-ups as jobs: see lookups.go
 }
 
 // hintFor returns what the browser said about a page, if anything.
@@ -144,8 +146,15 @@ func (s *DownloadService) LookUpVideo(pageURL string) (VideoLookup, error) {
 	if !s.tools.Installed() {
 		return VideoLookup{NeedsTools: true, PageURL: pageURL}, nil
 	}
+	j := s.lookJob(pageURL) // started already (a copied link), or now
+	<-j.done
+	return j.lookup, j.err
+}
+
+// lookUp asks yt-dlp about a page, telling steps what it's doing.
+func (s *DownloadService) lookUp(pageURL string, steps func(string)) (VideoLookup, error) {
 	hint := s.hintFor(pageURL)
-	info, choices, err := s.backend.Look(s.ctx, pageURL, s.headersFor(pageURL))
+	info, choices, err := s.backend.LookSteps(s.ctx, pageURL, s.headersFor(pageURL), steps)
 	if err != nil {
 		// Sites change and yt-dlp catches up: if a look-up fails, check
 		// (at most daily) whether a newer yt-dlp is out, and offer it.

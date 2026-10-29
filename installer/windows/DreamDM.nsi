@@ -14,6 +14,12 @@
 ;   - adds a Start menu shortcut, optionally a desktop one, and an entry in
 ;     Settings > Apps so it can be uninstalled.
 ;
+;
+; Updates: the app's updater (gui/appupdate.go) runs this setup with
+;     /S /CurrentUser (or /AllUsers) /RELAUNCH
+; - no windows, the same kind of install as before, and the app opened again
+; afterwards. The setup first waits for the app to close itself.
+;
 ; The uninstaller undoes all of that. It never touches downloaded files, and
 ; only removes your settings and download list if you tick the box.
 
@@ -64,6 +70,7 @@ VIAddVersionKey "LegalCopyright"  "Copyright (C) 2026 KLAH. GPL v3 or later."
 !include MultiUser.nsh
 !include MUI2.nsh
 !include LogicLib.nsh
+!include FileFunc.nsh
 
 ; ---- Look ------------------------------------------------------------------
 !define MUI_ICON   "${ROOT}\gui\build\windows\icon.ico"
@@ -108,8 +115,16 @@ VIAddVersionKey "LegalCopyright"  "Copyright (C) 2026 KLAH. GPL v3 or later."
 !insertmacro MUI_LANGUAGE "English"
 
 ; ---- Start -----------------------------------------------------------------
+Var Relaunch ; 1: started by the app's updater (/RELAUNCH)
+
 Function .onInit
   !insertmacro MULTIUSER_INIT
+  ${GetParameters} $R0
+  ClearErrors
+  ${GetOptions} $R0 "/RELAUNCH" $R1
+  ${IfNot} ${Errors}
+    StrCpy $Relaunch 1
+  ${EndIf}
 FunctionEnd
 
 Function un.onInit
@@ -137,6 +152,20 @@ FunctionEnd
 
 ; ---- Install ---------------------------------------------------------------
 Section "Install"
+  ${If} $Relaunch == 1
+    ; The app closes itself after starting this; give it up to 15 s to save
+    ; its list and go, before CloseApp would force it.
+    StrCpy $R2 0
+    ${Do}
+      ; find's exit code: 0 = still running, 1 = gone.
+      nsExec::Exec 'cmd /c tasklist /FI "IMAGENAME eq ${EXE}" /NH | find /I "${EXE}"'
+      Pop $R3
+      ${IfThen} $R3 != 0 ${|} ${ExitDo} ${|}
+      IntOp $R2 $R2 + 1
+      ${IfThen} $R2 >= 30 ${|} ${ExitDo} ${|}
+      Sleep 500
+    ${Loop}
+  ${EndIf}
   !insertmacro CloseApp
 
   SetOutPath "$INSTDIR"
@@ -185,6 +214,11 @@ Section "Install"
   ; Size in KB, for Settings > Apps.
   SectionGetSize 0 $0
   WriteRegDWORD SHCTX "${UNINSTKEY}" "EstimatedSize" $0
+
+  ; An update from the app: open it again.
+  ${If} $Relaunch == 1
+    Call OpenApp
+  ${EndIf}
 SectionEnd
 
 ; JSONPath: doubles every backslash in the string on the stack.

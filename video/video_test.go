@@ -1,6 +1,7 @@
 package video
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -40,6 +41,18 @@ func fakeYtDlp() {
 		fmt.Fprintln(os.Stderr, "WARNING: something minor")
 		fmt.Fprintln(os.Stderr, "ERROR: [youtube] abc123XYZ00: Video unavailable. This video has been removed")
 		os.Exit(1)
+	case contains(args, "--print-to-file") && !strings.Contains(url, "gone") && !strings.Contains(url, "notvideo"):
+		// A look-up with steps: the usual messages, the answer to the file.
+		fmt.Println("[youtube] Extracting URL: " + url)
+		fmt.Println("[youtube] abc123XYZ00: Downloading webpage")
+		fmt.Println("[youtube] abc123XYZ00: Downloading player 096efeec-main")
+		fmt.Println("[youtube] [jsc:node] Solving JS challenges using node")
+		fmt.Println("[info] abc123XYZ00: Downloading 1 format(s): 399+251")
+		data, _ := os.ReadFile(os.Getenv("FAKE_YTDLP_JSON"))
+		var line bytes.Buffer
+		json.Compact(&line, data)
+		line.WriteByte('\n')
+		os.WriteFile(args[indexOf(args, "--print-to-file")+2], line.Bytes(), 0o644)
 	case contains(args, "--skip-download"): // subtitles only
 		out := args[indexOf(args, "-o")+1]
 		lang := args[indexOf(args, "--sub-langs")+1]
@@ -500,5 +513,51 @@ func TestRecentLookUpUsedOnce(t *testing.T) {
 	c.m[k] = cachedLook{info, time.Now().Add(-recentFor - time.Second)}
 	if c.take(k) != nil {
 		t.Error("too old, but used")
+	}
+}
+
+// With Steps, the look-up reports yt-dlp's steps and gives the same answer.
+func TestInspectWithSteps(t *testing.T) {
+	o := fakeTools(t)
+	var steps []string
+	o.Steps = func(s string) { steps = append(steps, s) }
+	info, err := Inspect(context.Background(), "https://www.youtube.com/watch?v=abc123XYZ00", o)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Title != `A test video: with / odd \ characters?` || len(info.Formats) == 0 {
+		t.Errorf("got %+v", info)
+	}
+	want := []string{"Opening the page", "Reading YouTube's player", "Solving YouTube's check", "Almost done"}
+	if strings.Join(steps, "|") != strings.Join(want, "|") {
+		t.Errorf("steps %q, want %q", steps, want)
+	}
+	args, _ := os.ReadFile(os.Getenv("FAKE_YTDLP_ARGS"))
+	a := strings.Split(string(args), "\n")
+	if a[len(a)-2] != "--" || !contains(a, "--skip-download") || !contains(a, "--flat-playlist") || contains(a, "-J") {
+		t.Errorf("yt-dlp was run with %q", a)
+	}
+
+	_, err = Inspect(context.Background(), "https://www.youtube.com/watch?v=gone", o)
+	if err == nil || err.Error() != "Video unavailable. This video has been removed" {
+		t.Errorf("gone: %v", err)
+	}
+	_, err = Inspect(context.Background(), "https://example.com/notvideo", o)
+	if !errors.Is(err, ErrNotVideo) {
+		t.Errorf("not a video: %v", err)
+	}
+}
+
+func TestStepText(t *testing.T) {
+	for line, want := range map[string]string{
+		"[youtube] abc: Downloading tv samsung player API JSON": "Asking for the video's formats",
+		"[youtube] abc: Downloading m3u8 information":           "Listing the qualities",
+		"[vimeo] 123: Downloading JSON metadata":                "Reading the page",
+		"[info] Writing '%()j' to: C:\\x.json":                  "Almost done",
+		"some other line":                                       "",
+	} {
+		if got := stepText(line); got != want {
+			t.Errorf("%q: got %q, want %q", line, got, want)
+		}
 	}
 }

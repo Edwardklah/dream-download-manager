@@ -34,8 +34,9 @@ type DownloadService struct {
 	limits  *engine.HostLimits
 	dirty   atomic.Bool // the list changed since the last event
 
-	videoState  // video downloads: see video.go
-	extrasState // scheduler, when done, updates, clipboard: see extras.go
+	videoState     // video downloads: see video.go
+	extrasState    // scheduler, when done, updates, clipboard: see extras.go
+	appUpdateState // updates of Dream DM itself: see appupdate.go
 }
 
 // The event the frontend listens to: the full list, at most 4x a second.

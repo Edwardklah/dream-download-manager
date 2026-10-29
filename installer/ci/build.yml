@@ -1,0 +1,190 @@
+# Builds Dream Download Manager on GitHub's computers, for Linux and Windows.
+#
+# Runs on every push, and when started by hand (Actions > Build > Run
+# workflow). The results are under the run's "Artifacts":
+#   dreamdm-linux    .deb (Ubuntu, Debian, Mint), .rpm (Fedora) and .tar.gz
+#   dreamdm-windows  DreamDM-Setup-<version>.exe
+# Pushing a tag like v0.9.0 also attaches them to a GitHub release.
+#
+# The version comes from gui/build/windows/info.json (fixed.file_version).
+# Making a release: raise it there (file_version and ProductVersion), push,
+# then push a tag with the same number:  git tag v0.9.2; git push --tags
+# Every installed Dream DM finds the release within a day (gui/appupdate.go).
+
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write # only used to attach files to a release, for tags
+
+env:
+  WAILS_VERSION: v3.0.0-beta.34 # keep in step with gui/go.mod
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - name: Go tests (engine, manager, video, bridge...)
+        run: go test ./...
+
+  linux:
+    needs: test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: gui/go.mod
+          cache-dependency-path: gui/go.sum
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      # Wails v3 (and its wails3 tool) use GTK 4 and WebKitGTK 6.0; the
+      # older GTK 3 set is installed too, in case a build falls back to it.
+      # Without the "recommended" extras (much less to download); never
+      # waits for a question. GitHub's package mirror sometimes freezes in the
+      # middle of a big file (WebKitGTK is 25 MB): a download silent for 30 s
+      # is dropped and tried again, up to 5 times, instead of waiting forever.
+      - name: Linux libraries the window needs (GTK and WebKitGTK)
+        timeout-minutes: 25
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nAcquire::https::Timeout "30";\n' | sudo tee /etc/apt/apt.conf.d/80-retries
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential pkg-config \
+            libgtk-4-dev libwebkitgtk-6.0-dev libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      - name: Wails and nfpm (the package builder)
+        run: |
+          go install github.com/wailsapp/wails/v3/cmd/wails3@${WAILS_VERSION}
+          go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.41.1
+
+      - name: Version
+        run: echo "VERSION=$(jq -r .fixed.file_version gui/build/windows/info.json)" >> "$GITHUB_ENV"
+
+      - name: Build the app
+        working-directory: gui
+        run: |
+          wails3 generate bindings -f '-tags production' -clean=true -ts -i
+          (cd frontend && npm install && npm run build)
+          CGO_ENABLED=1 go build -tags production -trimpath -buildvcs=false -ldflags="-w -s" -o ../dist/linux/dreamdm .
+
+      - name: Build the browser helper
+        run: CGO_ENABLED=0 go build -trimpath -ldflags="-w -s" -o dist/linux/dlm-host ./cmd/dlm-host
+
+      # The packages must ask for the libraries the program really uses.
+      - name: Which window libraries the app uses
+        run: |
+          ldd dist/linux/dreamdm | grep -Ei 'gtk|webkit' || true
+          if ldd dist/linux/dreamdm | grep -q 'libwebkitgtk-6.0'; then
+            echo "DEB_GTK=libgtk-4-1" >> "$GITHUB_ENV"
+            echo "DEB_WEBKIT=libwebkitgtk-6.0-4" >> "$GITHUB_ENV"
+            echo "RPM_GTK=gtk4" >> "$GITHUB_ENV"
+            echo "RPM_WEBKIT=webkitgtk6.0" >> "$GITHUB_ENV"
+          else
+            echo "DEB_GTK=libgtk-3-0" >> "$GITHUB_ENV"
+            echo "DEB_WEBKIT=libwebkit2gtk-4.1-0" >> "$GITHUB_ENV"
+            echo "RPM_GTK=gtk3" >> "$GITHUB_ENV"
+            echo "RPM_WEBKIT=webkit2gtk4.1" >> "$GITHUB_ENV"
+          fi
+
+      - name: Packages
+        run: |
+          nfpm package -f installer/linux/nfpm.yaml -p deb -t dist/
+          nfpm package -f installer/linux/nfpm.yaml -p rpm -t dist/
+          # Check the .deb really holds the extension, readable by everyone.
+          dpkg-deb -c dist/*.deb | grep /opt/dreamdm/
+          for f in manifest.json background.js icons/icon16.png icons/icon128.png; do
+            dpkg-deb -c dist/*.deb | grep -q "^-rw-r--r-- .*/opt/dreamdm/extension/$f$" || { echo "missing or unreadable in the .deb: $f"; exit 1; }
+          done
+          # A plain archive too, for other distributions.
+          mkdir -p dist/tar/dreamdm
+          cp dist/linux/dreamdm dist/linux/dlm-host LICENSE installer/linux/dreamdm.desktop installer/linux/dreamdm.png dist/tar/dreamdm/
+          cp -r extension dist/tar/dreamdm/
+          tar -C dist/tar -czf "dist/dreamdm-${VERSION}-linux-amd64.tar.gz" dreamdm
+          ls -la dist
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: dreamdm-linux
+          path: |
+            dist/*.deb
+            dist/*.rpm
+            dist/*.tar.gz
+
+      - name: Attach to the release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.deb
+            dist/*.rpm
+            dist/*.tar.gz
+
+  windows:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: gui/go.mod
+          cache-dependency-path: gui/go.sum
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Wails
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@${{ env.WAILS_VERSION }}
+
+      - name: Build the app
+        working-directory: gui
+        run: wails3 build
+
+      - name: Build the browser helper
+        run: go build -trimpath -ldflags="-s -w" -o gui/bin/dlm-host.exe ./cmd/dlm-host
+
+      - name: Setup file (NSIS)
+        shell: pwsh
+        run: |
+          $version = (Get-Content gui/build/windows/info.json -Raw | ConvertFrom-Json).fixed.file_version
+          New-Item -ItemType Directory -Force dist | Out-Null
+          if (-not (Get-Command makensis -ErrorAction SilentlyContinue)) { choco install nsis -y --no-progress }
+          $makensis = (Get-Command makensis -ErrorAction SilentlyContinue).Source
+          if (-not $makensis) { $makensis = "${env:ProgramFiles(x86)}\NSIS\makensis.exe" }
+          Push-Location installer/windows
+          & $makensis /V2 "/DVERSION=$version" DreamDM.nsi
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Pop-Location
+          # The checksum the app's updater checks the download against.
+          $setup = "dist/DreamDM-Setup-$version.exe"
+          $hash = (Get-FileHash $setup -Algorithm SHA256).Hash.ToLower()
+          Set-Content -NoNewline -Path "$setup.sha256" -Value "$hash  DreamDM-Setup-$version.exe`n"
+          Get-ChildItem dist
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: dreamdm-windows
+          path: |
+            dist/*.exe
+            dist/*.sha256
+
+      - name: Attach to the release (tags only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.exe
+            dist/*.sha256

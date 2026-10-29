@@ -42,6 +42,24 @@ folder, then `makensis /DVERSION=<version> DreamDM.nsi` in
 `installer/windows/` (NSIS: `winget install -e --id NSIS.NSIS`). The file
 lands in `dist/`.
 
+## Updates and releases
+
+Dream DM checks GitHub for a new release about once a day (Settings >
+Dream DM updates). On Windows, **Update now** downloads the new setup file,
+checks it against its published SHA-256 checksum, installs it silently and
+reopens the app; downloads in progress continue. On Linux the notice links
+to the release, for the new `.deb` or `.rpm`.
+
+To publish a release:
+
+1. Raise the version in `gui/build/windows/info.json` (`file_version` and
+   `ProductVersion`, e.g. `0.9.2`). The app, the Windows setup and the Linux
+   packages all take their version from there.
+2. Commit and push, then tag the same number:
+   `git tag v0.9.2` and `git push --tags`.
+3. GitHub Actions builds everything and attaches it to the release:
+   the setup file, its `.sha256`, and the Linux packages.
+
 ## Try it
 
 From this folder, in PowerShell:

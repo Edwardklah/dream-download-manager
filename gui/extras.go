@@ -59,6 +59,7 @@ func (s *DownloadService) startExtras() {
 		go setStartWithSystem(true)
 	}
 	go s.updateLoop()
+	go s.appUpdateLoop()
 	go s.watchClipboard()
 }
 
@@ -280,6 +281,7 @@ func (s *DownloadService) watchClipboard() {
 			continue
 		}
 		last = text
+		s.prefetch(text) // a video link: look it up already, if Settings says so
 		if !s.manager.Settings().WatchClipboard {
 			continue
 		}

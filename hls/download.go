@@ -6,6 +6,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/sha256"
+	"dlmanager/engine"
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
@@ -375,6 +376,7 @@ func (d *Download) get(ctx context.Context, addr string, offset, length, limit i
 				return nil, nil, errTooBig
 			}
 			buf.Write(chunk[:n])
+			engine.GiveWay(ctx, n) // a video look-up is running: let it have the line
 		}
 		if rerr == io.EOF {
 			break
