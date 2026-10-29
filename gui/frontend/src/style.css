@@ -1536,6 +1536,32 @@ input[type="time"]:disabled {
   margin-bottom: 14px;
 }
 
+/* ---- What's new (after an update, or before one) ---- */
+
+.whatsnew .release {
+  margin: 0 0 14px;
+}
+
+.whatsnew .release h3 {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.whatsnew ul {
+  margin: 0;
+  padding-left: 20px;
+  line-height: 1.5;
+}
+
+.whatsnew li.highlight {
+  font-weight: 650;
+}
+
+.whatsnew .row-buttons {
+  margin-top: 18px;
+}
+
 .looking {
   display: flex;
   flex-wrap: wrap;

@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"dlmanager"
 	"dlmanager/update"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -59,10 +60,13 @@ type AppUpdate struct {
 	Latest     string `json:"latest"`
 	Notes      string `json:"notes"`      // the release's page ("What's new")
 	CanInstall bool   `json:"canInstall"` // Windows, installed by the setup: Update now
-	Busy       bool   `json:"busy"`       // downloading it
-	Done       int64  `json:"done"`
-	Total      int64  `json:"total"`
-	Error      string `json:"error"`
+	// What changed since this version (from the new release's changelog),
+	// for "What's new"; nil if it couldn't be read (then: the release page).
+	Changes *update.Summary `json:"changes"`
+	Busy    bool            `json:"busy"` // downloading it
+	Done    int64           `json:"done"`
+	Total   int64           `json:"total"`
+	Error   string          `json:"error"`
 }
 
 const appUpdateEvent = "app-update"
@@ -70,10 +74,10 @@ const appUpdateEvent = "app-update"
 func init() { application.RegisterEvent[AppUpdate](appUpdateEvent) }
 
 type appUpdateState struct {
-	appMu      sync.Mutex
-	appUpdate  AppUpdate
-	appBusy    atomic.Bool
-	appChecked time.Time
+	appMu     sync.Mutex
+	appUpdate AppUpdate
+	appBusy   atomic.Bool
+	updated   *update.Summary // just updated: what's new, shown once
 }
 
 // What's remembered between runs: when GitHub was last asked, and a
@@ -82,6 +86,7 @@ type appUpdateFile struct {
 	Checked   time.Time `json:"checked"`
 	Latest    string    `json:"latest"`
 	Dismissed string    `json:"dismissed"`
+	LastRun   string    `json:"lastRun"` // the version that ran last time
 }
 
 func appUpdatePath() string {
@@ -172,10 +177,50 @@ func (s *DownloadService) checkAppUpdate(now bool) {
 		s.setAppUpdate(AppUpdate{Current: appVersion, Latest: latest})
 		return
 	}
-	s.setAppUpdate(AppUpdate{
+	u := AppUpdate{
 		Available: true, Current: appVersion, Latest: latest,
 		Notes: update.ReleasePage(latest), CanInstall: canInstallUpdates(),
-	})
+	}
+	if prev := s.PendingAppUpdate(); prev.Latest == latest && prev.Changes != nil {
+		u.Changes = prev.Changes // read already
+	} else {
+		ctx, cancel := context.WithTimeout(s.ctx, 30*time.Second)
+		if rels, err := update.FetchChangelog(ctx, latest); err == nil {
+			sum := update.Summarize(rels, appVersion, latest)
+			u.Changes = &sum
+		}
+		cancel()
+	}
+	s.setAppUpdate(u)
+}
+
+// noteVersionRun remembers which version is running. If it's newer than
+// last time, Dream DM was just updated: JustUpdated then has what's new
+// (from this version's own changelog, so it works offline).
+func (s *DownloadService) noteVersionRun() {
+	f := readAppUpdateFile()
+	if f.LastRun != "" && update.Newer(appVersion, f.LastRun) {
+		sum := update.Summarize(update.ParseChangelog(dlmanager.Changelog), f.LastRun, appVersion)
+		if len(sum.Recent) > 0 {
+			s.appMu.Lock()
+			s.updated = &sum
+			s.appMu.Unlock()
+		}
+	}
+	if f.LastRun != appVersion {
+		f.LastRun = appVersion
+		writeAppUpdateFile(f)
+	}
+}
+
+// JustUpdated returns, once, what's new if Dream DM was just updated (nil
+// otherwise): the window shows it as "Updated to 0.9.5".
+func (s *DownloadService) JustUpdated() *update.Summary {
+	s.appMu.Lock()
+	defer s.appMu.Unlock()
+	u := s.updated
+	s.updated = nil
+	return u
 }
 
 // DismissAppUpdate: "Later" - this version isn't offered again (a newer
@@ -192,6 +237,13 @@ func (s *DownloadService) DismissAppUpdate() {
 func (s *DownloadService) OpenAppUpdatePage() {
 	if u := s.PendingAppUpdate(); u.Notes != "" && s.app != nil {
 		s.app.Browser.OpenURL(u.Notes)
+	}
+}
+
+// OpenReleasesPage opens the list of all releases in the browser.
+func (s *DownloadService) OpenReleasesPage() {
+	if s.app != nil {
+		s.app.Browser.OpenURL(update.Repo + "/releases")
 	}
 }
 

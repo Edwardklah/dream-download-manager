@@ -22,6 +22,7 @@ import type {
   WhenDoneState,
 } from "../bindings/dlmanager/gui";
 import type { Item, QueueState, Settings } from "../bindings/dlmanager/manager";
+import type { Summary } from "../bindings/dlmanager/update";
 import "./style.css";
 
 type Filter = "all" | "active" | "waiting" | "finished" | "stopped";
@@ -84,6 +85,7 @@ function App() {
   const [whenDone, setWhenDone] = useState<WhenDoneState | null>(null);
   const [update, setUpdate] = useState<ToolsUpdate | null>(null); // a newer yt-dlp
   const [appUpdate, setAppUpdate] = useState<AppUpdate | null>(null); // a newer Dream DM
+  const [whatsNew, setWhatsNew] = useState<{ title: string; summary: Summary } | null>(null);
   const [copied, setCopied] = useState(""); // a download link you copied
   const [showWelcome, setShowWelcome] = useState(false); // the first-run welcome
   const [offers, setOffers] = useState<BrowserOffer[]>([]); // downloads from the browser, waiting for you
@@ -102,6 +104,8 @@ function App() {
     DownloadService.WhenDone().then(setWhenDone);
     DownloadService.PendingToolsUpdate().then(setUpdate);
     DownloadService.PendingAppUpdate().then(setAppUpdate);
+    // Just updated: show what's new, once.
+    DownloadService.JustUpdated().then((sum) => sum && setWhatsNew({ title: `Updated to ${sum.to}`, summary: sum }));
     DownloadService.BrowserOffers().then((o) => setOffers(o ?? []));
     const takeCopied = () => DownloadService.TakeClipboardLink().then((l) => l && setCopied(l));
     takeCopied();
@@ -290,7 +294,13 @@ function App() {
           {offers.map((o) => (
             <OfferCard key={o.id} offer={o} act={act} />
           ))}
-          {appUpdate?.available && <AppUpdateNotice update={appUpdate} act={act} />}
+          {appUpdate?.available && (
+            <AppUpdateNotice
+              update={appUpdate}
+              act={act}
+              showChanges={(sum) => setWhatsNew({ title: `What's new in ${appUpdate.latest}`, summary: sum })}
+            />
+          )}
           {update?.available && <UpdateNotice update={update} dismiss={() => act(DownloadService.DismissToolsUpdate())} />}
           {copied && (
             <CopiedLink
@@ -334,7 +344,14 @@ function App() {
         <Countdown state={whenDone} cancel={() => act(DownloadService.CancelWhenDone())} />
       )}
 
-      {showSettings && <SettingsPanel close={() => setShowSettings(false)} act={act} />}
+      {showSettings && (
+        <SettingsPanel
+          close={() => setShowSettings(false)}
+          act={act}
+          showChanges={(v, sum) => setWhatsNew({ title: `What's new in ${v}`, summary: sum })}
+        />
+      )}
+      {whatsNew && <WhatsNew title={whatsNew.title} summary={whatsNew.summary} close={() => setWhatsNew(null)} act={act} />}
       {showHelp && (
         <HelpPanel
           close={() => setShowHelp(false)}
@@ -800,16 +817,79 @@ function UpdateNotice({ update, dismiss }: { update: ToolsUpdate; dismiss: () =>
   );
 }
 
+// What changed between two versions (update.Summary): the newest few in
+// full, then only the highlights of older ones, so a long gap stays short.
+function WhatsNew({
+  title,
+  summary,
+  close,
+  act,
+}: {
+  title: string;
+  summary: Summary;
+  close: () => void;
+  act: (p: Promise<unknown>) => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+  const line = (l: { text: string; highlight: boolean }, i: number) => (
+    <li key={i} class={l.highlight ? "highlight" : ""}>
+      {l.text}
+    </li>
+  );
+  const older = (summary.earlier?.length ?? 0) > 0 || summary.more > 0;
+  return (
+    <div class="scrim" onClick={(e) => e.target === e.currentTarget && close()}>
+      <section class="picker whatsnew" role="dialog" aria-label={title}>
+        <header>
+          <h2>{title}</h2>
+          <IconButton icon="close" label="Close" onClick={close} />
+        </header>
+        {(summary.recent ?? []).map((r) => (
+          <div key={r.version} class="release">
+            <h3>Version {r.version}</h3>
+            <ul>{(r.lines ?? []).map(line)}</ul>
+          </div>
+        ))}
+        {older && (
+          <div class="release">
+            <h3>Earlier updates</h3>
+            {(summary.earlier?.length ?? 0) > 0 && <ul>{summary.earlier.map(line)}</ul>}
+            {summary.more > 0 && (
+              <p class="hint">
+                …and {summary.more} more {summary.more === 1 ? "update" : "updates"} with smaller changes.
+              </p>
+            )}
+          </div>
+        )}
+        <div class="row-buttons">
+          <button class="primary" onClick={close}>
+            OK
+          </button>
+          <button class="secondary" onClick={() => act(DownloadService.OpenReleasesPage())}>
+            All changes on GitHub
+          </button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 // Settings: this version, checking for new ones, and updating from here
 // (the same as the notice at the top of the list).
 function AppVersionSection({
   s,
   save,
   act,
+  showChanges,
 }: {
   s: Settings;
   save: (s: Settings) => void;
   act: (p: Promise<unknown>) => void;
+  showChanges: (version: string, sum: Summary) => void;
 }) {
   const [version, setVersion] = useState("");
   const [checking, setChecking] = useState(false);
@@ -862,7 +942,10 @@ function AppVersionSection({
           </button>
         )}
         {u?.available && !u.busy && (
-          <button class="secondary" onClick={() => act(DownloadService.OpenAppUpdatePage())}>
+          <button
+            class="secondary"
+            onClick={() => (u.changes ? showChanges(u.latest, u.changes) : act(DownloadService.OpenAppUpdatePage()))}
+          >
             What's new
           </button>
         )}
@@ -884,7 +967,15 @@ function AppVersionSection({
 // A newer Dream DM. On Windows, Update now downloads the setup (~6 MB),
 // checks it, installs it and reopens the app; on Linux it links to the
 // release, for the new package.
-function AppUpdateNotice({ update, act }: { update: AppUpdate; act: (p: Promise<unknown>) => void }) {
+function AppUpdateNotice({
+  update,
+  act,
+  showChanges,
+}: {
+  update: AppUpdate;
+  act: (p: Promise<unknown>) => void;
+  showChanges: (s: Summary) => void;
+}) {
   const pct = update.total > 0 ? Math.round((update.done / update.total) * 100) : 0;
   return (
     <div class="notice" role="status">
@@ -913,8 +1004,11 @@ function AppUpdateNotice({ update, act }: { update: AppUpdate; act: (p: Promise<
       )}
       {!update.busy && (
         <>
-          {update.canInstall && (
-            <button class="secondary" onClick={() => act(DownloadService.OpenAppUpdatePage())}>
+          {(update.canInstall || update.changes) && (
+            <button
+              class="secondary"
+              onClick={() => (update.changes ? showChanges(update.changes) : act(DownloadService.OpenAppUpdatePage()))}
+            >
               What's new
             </button>
           )}
@@ -1287,7 +1381,15 @@ function clock(seconds: number): string {
 
 // ---- Settings ----
 
-function SettingsPanel({ close, act }: { close: () => void; act: (p: Promise<unknown>) => void }) {
+function SettingsPanel({
+  close,
+  act,
+  showChanges,
+}: {
+  close: () => void;
+  act: (p: Promise<unknown>) => void;
+  showChanges: (version: string, sum: Summary) => void;
+}) {
   const [s, setS] = useState<Settings | null>(null);
   const [limits, setLimits] = useState<ServerLimit[]>([]);
   const [newHost, setNewHost] = useState("");
@@ -1494,7 +1596,7 @@ function SettingsPanel({ close, act }: { close: () => void; act: (p: Promise<unk
           <p class="hint">A tiny check, at most once a week. Updates are only downloaded when you say so.</p>
         </section>
 
-        <AppVersionSection s={s} save={save} act={act} />
+        <AppVersionSection s={s} save={save} act={act} showChanges={showChanges} />
 
         <section>
           <h3>Servers that limit connections</h3>

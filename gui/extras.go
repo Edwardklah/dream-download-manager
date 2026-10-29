@@ -59,6 +59,7 @@ func (s *DownloadService) startExtras() {
 		go setStartWithSystem(true)
 	}
 	go s.updateLoop()
+	s.noteVersionRun() // before the window asks JustUpdated
 	go s.appUpdateLoop()
 	go s.watchClipboard()
 }

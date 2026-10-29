@@ -52,13 +52,17 @@ to the release, for the new `.deb` or `.rpm`.
 
 To publish a release:
 
-1. Raise the version in `gui/build/windows/info.json` (`file_version` and
-   `ProductVersion`, e.g. `0.9.2`). The app, the Windows setup and the Linux
-   packages all take their version from there.
-2. Commit and push, then tag the same number:
-   `git tag v0.9.2` and `git push --tags`.
-3. GitHub Actions builds everything and attaches it to the release:
-   the setup file, its `.sha256`, and the Linux packages.
+1. Add a section for the new version at the top of `CHANGELOG.md`: one to
+   three short lines, ★ in front of a highlight. It becomes the release's
+   notes and what Dream DM shows in "What's new".
+2. Raise the version in `gui/build/windows/info.json` (`file_version` and
+   `ProductVersion`, e.g. `0.9.5`). The app, the Windows setup and the Linux
+   packages all take their version from there. (The tests fail if the two
+   differ, or if the changelog has no section for it.)
+3. Commit and push **first**, then tag that commit with the same number:
+   `git tag v0.9.5` and `git push origin v0.9.5`.
+4. GitHub Actions builds everything and attaches it to the release:
+   the setup file, its `.sha256`, the Linux packages, and the notes.
 
 ## Try it
 
