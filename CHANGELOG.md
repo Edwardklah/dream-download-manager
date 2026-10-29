@@ -9,6 +9,11 @@ How to write an entry (one section per release, before tagging it):
 - Start a line with ★ if it's a highlight: someone who skipped many
   updates only sees the highlights of older versions.
 
+## 0.9.6
+- ★ Delete a finished download's file from Dream DM: ✕ now offers "Remove and delete the file" or "Delete the file only" (it goes to the Recycle Bin).
+- Files moved or deleted outside Dream DM are marked "File not found", with Download again.
+- What's new now also shows after updating from 0.9.4 or older.
+
 ## 0.9.5
 - ★ "What's new" shows what changed since your version, inside Dream DM.
 - After an update, Dream DM shows a short summary of what's new.

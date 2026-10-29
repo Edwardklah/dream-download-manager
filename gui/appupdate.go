@@ -199,8 +199,15 @@ func (s *DownloadService) checkAppUpdate(now bool) {
 // (from this version's own changelog, so it works offline).
 func (s *DownloadService) noteVersionRun() {
 	f := readAppUpdateFile()
-	if f.LastRun != "" && update.Newer(appVersion, f.LastRun) {
-		sum := update.Summarize(update.ParseChangelog(dlmanager.Changelog), f.LastRun, appVersion)
+	rels := update.ParseChangelog(dlmanager.Changelog)
+	from := f.LastRun
+	if from == "" && !f.Checked.IsZero() {
+		// Updated from a version that had the updater but didn't note its
+		// version yet (0.9.4 and before): show this version's changes.
+		from = previousVersion(rels, appVersion)
+	}
+	if from != "" && update.Newer(appVersion, from) {
+		sum := update.Summarize(rels, from, appVersion)
 		if len(sum.Recent) > 0 {
 			s.appMu.Lock()
 			s.updated = &sum
@@ -211,6 +218,17 @@ func (s *DownloadService) noteVersionRun() {
 		f.LastRun = appVersion
 		writeAppUpdateFile(f)
 	}
+}
+
+// previousVersion: the changelog's version just before v ("" if none).
+func previousVersion(rels []update.Release, v string) string {
+	best := ""
+	for _, r := range rels {
+		if update.Newer(v, r.Version) && (best == "" || update.Newer(r.Version, best)) {
+			best = r.Version
+		}
+	}
+	return best
 }
 
 // JustUpdated returns, once, what's new if Dream DM was just updated (nil

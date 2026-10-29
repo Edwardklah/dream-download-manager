@@ -83,6 +83,14 @@ type Item struct {
 	// Video, Music... folder inside it.
 	KeepFolder bool `json:"keepFolder,omitempty"`
 
+	// FileDeleted: the finished file was deleted from the list (to the
+	// Recycle Bin), but the download is kept in the list.
+	FileDeleted bool `json:"fileDeleted,omitempty"`
+
+	// FileMissing: finished, but the file isn't where it was saved any more
+	// (moved, renamed or deleted outside Dream DM). See CheckFiles.
+	FileMissing bool `json:"fileMissing,omitempty"`
+
 	// Live details, only meaningful while running (not saved).
 	Speed       float64               `json:"speed"`
 	ETASeconds  float64               `json:"etaSeconds"`
@@ -370,6 +378,94 @@ func (m *Manager) Remove(id int, deletePartial bool) error {
 	}
 	m.notify()
 	return nil
+}
+
+// MarkFileDeleted notes that a finished download's file was deleted (the
+// download stays in the list, marked so).
+func (m *Manager) MarkFileDeleted(id int) error {
+	return m.change(id, func(e *entry) error {
+		if e.Status != Completed {
+			return errors.New("only a finished download's file can be deleted")
+		}
+		e.FileDeleted = true
+		return nil
+	})
+}
+
+// CheckFiles looks whether each finished download's file is still there,
+// and marks the ones that aren't (FileMissing). A file that comes back
+// (moved back, restored from the Recycle Bin) is unmarked, even one deleted
+// from Dream DM. Cheap: one look at each file; meant to be run every few
+// seconds.
+func (m *Manager) CheckFiles() {
+	m.mu.Lock()
+	type check struct {
+		e    *entry
+		path string
+	}
+	var checks []check
+	for _, e := range m.entries {
+		if e.Status == Completed && e.SavedPath != "" && !e.running {
+			checks = append(checks, check{e, e.SavedPath})
+		}
+	}
+	m.mu.Unlock()
+
+	// Look at the files without holding the lock (a slow disk mustn't
+	// hold up the window).
+	gone := make([]bool, len(checks))
+	for i, c := range checks {
+		_, err := os.Stat(c.path)
+		gone[i] = errors.Is(err, os.ErrNotExist)
+	}
+
+	m.mu.Lock()
+	changed := false
+	for i, c := range checks {
+		e := c.e
+		if e.Status != Completed || e.SavedPath != c.path {
+			continue // changed meanwhile
+		}
+		missing := gone[i] && !e.FileDeleted
+		back := !gone[i] && e.FileDeleted
+		if missing != e.FileMissing || back {
+			e.FileMissing = missing
+			if back {
+				e.FileDeleted = false
+			}
+			changed = true
+		}
+	}
+	if changed {
+		m.saveLocked()
+	}
+	m.mu.Unlock()
+	if changed {
+		m.notify()
+	}
+}
+
+// DownloadAgain downloads a finished download again, when its file was
+// deleted or isn't there any more: same link, same quality, same name.
+func (m *Manager) DownloadAgain(id int) error {
+	return m.change(id, func(e *entry) error {
+		if e.Status != Completed || e.running {
+			return errors.New("only a finished download can be downloaded again")
+		}
+		if e.SavedPath != "" && !e.FileDeleted && !e.FileMissing {
+			if _, err := os.Stat(e.SavedPath); err == nil {
+				return errors.New("the file is still there")
+			}
+		}
+		e.Status = Queued
+		e.StartNow = true
+		e.Downloaded = 0
+		e.SavedPath = ""
+		e.FinishedAt = time.Time{}
+		e.Problem, e.Note = "", ""
+		e.FileDeleted, e.FileMissing = false, false
+		return nil
+	})
 }
 
 // PauseAll pauses every download that isn't finished.

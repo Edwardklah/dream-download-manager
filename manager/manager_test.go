@@ -505,3 +505,55 @@ func TestChosenFolderIsKept(t *testing.T) {
 		t.Errorf("saved to %s, want %s", done.SavedPath, want)
 	}
 }
+
+// A finished file that disappears is noticed, comes back when restored,
+// and can be downloaded again.
+func TestMissingFileAndDownloadAgain(t *testing.T) {
+	fs, ts := newFileServer(t, 0)
+	dir := t.TempDir()
+	m := newManager(t, dir, Settings{MaxActive: 3, Connections: 1})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	m.Start(ctx)
+
+	fs.add("song.mp3", 50_000)
+	it, err := m.Add(ts.URL+"/song.mp3", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "finished", func() bool { return status(m, it.ID) == Completed })
+	done, _ := m.Get(it.ID)
+
+	if err := m.DownloadAgain(it.ID); err == nil {
+		t.Error("downloaded again while the file is still there")
+	}
+
+	moved := done.SavedPath + ".moved"
+	os.Rename(done.SavedPath, moved)
+	m.CheckFiles()
+	if got, _ := m.Get(it.ID); !got.FileMissing {
+		t.Fatal("missing file not noticed")
+	}
+	os.Rename(moved, done.SavedPath)
+	m.CheckFiles()
+	if got, _ := m.Get(it.ID); got.FileMissing {
+		t.Fatal("file is back, still marked missing")
+	}
+
+	os.Remove(done.SavedPath)
+	m.CheckFiles()
+	if err := m.DownloadAgain(it.ID); err != nil {
+		t.Fatal(err)
+	}
+	waitFor(t, "finished again", func() bool {
+		got, _ := m.Get(it.ID)
+		return got.Status == Completed && got.SavedPath != ""
+	})
+	got, _ := m.Get(it.ID)
+	if got.SavedPath != done.SavedPath || got.FileMissing {
+		t.Errorf("again: saved to %s (missing %v), want %s", got.SavedPath, got.FileMissing, done.SavedPath)
+	}
+	if st, err := os.Stat(got.SavedPath); err != nil || st.Size() != 50_000 {
+		t.Errorf("file: %v %v", st, err)
+	}
+}

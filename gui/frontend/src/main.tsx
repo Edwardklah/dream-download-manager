@@ -538,6 +538,8 @@ function Row({
               >
                 <Icon name="chevron" />
               </button>
+            ) : status === "completed" && (d.fileDeleted || d.fileMissing) ? (
+              <IconButton icon="retry" label="Download again" onClick={() => act(DownloadService.DownloadAgain(d.id))} />
             ) : status === "completed" ? (
               <IconButton icon="open" label="Open file" onClick={() => act(DownloadService.OpenFile(d.id))} />
             ) : (
@@ -549,7 +551,7 @@ function Row({
             )}
             {status === "paused" && <IconButton icon="play" label="Resume" onClick={() => act(DownloadService.Resume(d.id))} />}
             {status === "failed" && <IconButton icon="retry" label="Try again" onClick={() => act(DownloadService.Resume(d.id))} />}
-            {status === "completed" && (
+            {status === "completed" && !d.fileDeleted && (
               <IconButton icon="folder" label="Show in folder" onClick={() => act(DownloadService.ShowInFolder(d.id))} />
             )}
             <IconButton icon="close" label="Remove" onClick={() => setConfirming(true)} />
@@ -567,6 +569,26 @@ function Row({
               Remove and delete the partial file
             </button>
           )}
+          {/* A finished file that's still there can also be deleted (to the
+              Recycle Bin / Trash), with or without the list entry. */}
+          {status === "completed" && !d.fileDeleted && !d.fileMissing && (
+            <>
+              <button
+                class="danger"
+                title={`Moves the file to the ${onWindowsPC ? "Recycle Bin" : "Trash"}`}
+                onClick={() => act(DownloadService.DeleteFile(d.id, true))}
+              >
+                Remove and delete the file
+              </button>
+              <button
+                class="danger"
+                title={`Moves the file to the ${onWindowsPC ? "Recycle Bin" : "Trash"}; the download stays in the list`}
+                onClick={() => act(DownloadService.DeleteFile(d.id, false).then(() => setConfirming(false)))}
+              >
+                Delete the file only
+              </button>
+            </>
+          )}
           <button onClick={() => setConfirming(false)}>Keep</button>
         </div>
       )}
@@ -578,6 +600,10 @@ function Row({
 function infoText(d: Item, queuePos?: number, queue?: QueueState | null): { text: string; tone: string } {
   const status = d.status as string;
   if (status === "failed") return { text: d.problem || "Failed", tone: "bad" };
+  if (status === "completed" && d.fileDeleted) return { text: "File deleted", tone: "" };
+  if (status === "completed" && d.fileMissing) {
+    return { text: "File not found: moved or deleted outside Dream DM", tone: "warn" };
+  }
   if (d.problem && (status === "retrying" || status === "downloading" || status === "starting")) {
     return { text: d.problem, tone: "warn" };
   }

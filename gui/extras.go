@@ -62,6 +62,7 @@ func (s *DownloadService) startExtras() {
 	s.noteVersionRun() // before the window asks JustUpdated
 	go s.appUpdateLoop()
 	go s.watchClipboard()
+	go s.watchFiles()
 }
 
 // ---- The scheduler ----
