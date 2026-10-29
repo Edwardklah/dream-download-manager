@@ -800,7 +800,8 @@ function UpdateNotice({ update, dismiss }: { update: ToolsUpdate; dismiss: () =>
   );
 }
 
-// Settings: this version, and checking for new ones.
+// Settings: this version, checking for new ones, and updating from here
+// (the same as the notice at the top of the list).
 function AppVersionSection({
   s,
   save,
@@ -812,10 +813,14 @@ function AppVersionSection({
 }) {
   const [version, setVersion] = useState("");
   const [checking, setChecking] = useState(false);
-  const [result, setResult] = useState("");
+  const [checked, setChecked] = useState(false);
+  const [u, setU] = useState<AppUpdate | null>(null);
   useEffect(() => {
     DownloadService.AppVersion().then(setVersion);
+    DownloadService.PendingAppUpdate().then(setU);
+    return Events.On("app-update", (ev) => setU(ev.data as AppUpdate));
   }, []);
+  const pct = u && u.total > 0 ? Math.round((u.done / u.total) * 100) : 0;
   return (
     <section>
       <h3>Dream DM updates</h3>
@@ -829,29 +834,49 @@ function AppVersionSection({
         A tiny check, about once a day. A new version (about 6 MB) is only downloaded when you press Update now.
       </p>
       <div class="row-buttons">
-        <button
-          disabled={checking}
-          onClick={() => {
-            setChecking(true);
-            setResult("");
-            act(
-              DownloadService.CheckAppUpdateNow().then((u) => {
-                setChecking(false);
-                setResult(
-                  u.error
-                    ? u.error
-                    : u.available
-                      ? `Version ${u.latest} is available: see the notice at the top of the list.`
-                      : "You have the latest version.",
-                );
-              }),
-            );
-          }}
-        >
-          {checking ? "Checking…" : "Check now"}
-        </button>
-        {result && <span class="hint">{result}</span>}
+        {u?.available ? (
+          u.canInstall ? (
+            <button class="primary" disabled={u.busy} onClick={() => act(DownloadService.InstallAppUpdate())}>
+              {u.busy ? "Updating…" : `Update to ${u.latest} now`}
+            </button>
+          ) : (
+            <button class="primary" onClick={() => act(DownloadService.OpenAppUpdatePage())}>
+              Download {u.latest}
+            </button>
+          )
+        ) : (
+          <button
+            disabled={checking}
+            onClick={() => {
+              setChecking(true);
+              act(
+                DownloadService.CheckAppUpdateNow().then((r) => {
+                  setChecking(false);
+                  setChecked(true);
+                  setU(r);
+                }),
+              );
+            }}
+          >
+            {checking ? "Checking…" : "Check now"}
+          </button>
+        )}
+        {u?.available && !u.busy && (
+          <button class="secondary" onClick={() => act(DownloadService.OpenAppUpdatePage())}>
+            What's new
+          </button>
+        )}
       </div>
+      {u?.busy && (
+        <p class="hint">
+          {u.total > 0 && u.done >= u.total
+            ? "Installing - Dream DM will close and open again in a moment."
+            : `Downloading the update: ${size(u.done)}${u.total > 0 ? ` of ${size(u.total)} (${pct}%)` : ""}`}
+        </p>
+      )}
+      {u?.error && <p class="hint error">{u.error}</p>}
+      {u?.available && !u.busy && !u.error && <p class="hint">Version {u.latest} is available.</p>}
+      {checked && !u?.available && !u?.error && <p class="hint">You have the latest version.</p>}
     </section>
   );
 }
