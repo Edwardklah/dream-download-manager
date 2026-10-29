@@ -968,6 +968,19 @@ kbd {
   background: var(--raised);
 }
 
+/* A main button in Settings (Update now) keeps the accent look: ".panel
+   button" above is more specific than ".primary" and would grey it out. */
+.panel button.primary {
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.panel button.primary:hover:not(:disabled) {
+  background: var(--accent);
+  filter: brightness(1.08);
+}
+
 .confirm .danger {
   color: var(--bad);
 }
