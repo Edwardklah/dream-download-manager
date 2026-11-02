@@ -77,12 +77,12 @@ func handle(msg wire.Message) wire.Reply {
 	switch msg.Type {
 	case "ping":
 		// Only asks: never starts the app (the popup asks every time it opens).
-		if _, err := wire.Call(ctx, dir, "ping", nil); err != nil {
+		if _, err := wire.Call(ctx, dir, "ping", &msg.Request); err != nil {
 			return wire.Reply{Error: err.Error()}
 		}
 		return wire.Reply{OK: true}
 	case "open":
-		return call(ctx, dir, "open", nil)
+		return call(ctx, dir, "open", &msg.Request)
 	case "add", "video":
 		u, err := url.Parse(msg.URL)
 		if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {

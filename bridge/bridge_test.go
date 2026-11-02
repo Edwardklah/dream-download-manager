@@ -218,3 +218,31 @@ func TestHeaders(t *testing.T) {
 		t.Error("empty request should give no headers")
 	}
 }
+
+type versionApp struct {
+	fakeApp
+	versions []string
+}
+
+func (a *versionApp) ExtensionSeen(v string) {
+	a.mu.Lock()
+	a.versions = append(a.versions, v)
+	a.mu.Unlock()
+}
+
+// The extension's version reaches the app with every kind of message (and
+// "" from an extension too old to send it).
+func TestExtensionVersionIsReported(t *testing.T) {
+	app := &versionApp{}
+	dir := start(t, app)
+	ctx := context.Background()
+	Call(ctx, dir, "ping", &Request{ExtVersion: "0.4.1"})
+	Call(ctx, dir, "add", &Request{URL: "https://example.com/a.zip", ExtVersion: "0.4.1"})
+	Call(ctx, dir, "video", &Request{URL: "https://example.com/watch", ExtVersion: "0.4.2"})
+	Call(ctx, dir, "open", nil)
+	app.mu.Lock()
+	defer app.mu.Unlock()
+	if got := strings.Join(app.versions, ","); got != "0.4.1,0.4.1,0.4.2," {
+		t.Errorf("versions seen: %q", got)
+	}
+}

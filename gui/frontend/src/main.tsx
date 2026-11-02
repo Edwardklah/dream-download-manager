@@ -13,6 +13,7 @@ import { DownloadService } from "../bindings/dlmanager/gui";
 import type {
   AppUpdate,
   BrowserOffer,
+  ExtensionStatus,
   ServerLimit,
   ToolsStatus,
   ToolsUpdate,
@@ -85,6 +86,7 @@ function App() {
   const [whenDone, setWhenDone] = useState<WhenDoneState | null>(null);
   const [update, setUpdate] = useState<ToolsUpdate | null>(null); // a newer yt-dlp
   const [appUpdate, setAppUpdate] = useState<AppUpdate | null>(null); // a newer Dream DM
+  const [ext, setExt] = useState<ExtensionStatus | null>(null); // the browser extension needs a reload?
   const [whatsNew, setWhatsNew] = useState<{ title: string; summary: Summary } | null>(null);
   const [copied, setCopied] = useState(""); // a download link you copied
   const [showWelcome, setShowWelcome] = useState(false); // the first-run welcome
@@ -104,6 +106,7 @@ function App() {
     DownloadService.WhenDone().then(setWhenDone);
     DownloadService.PendingToolsUpdate().then(setUpdate);
     DownloadService.PendingAppUpdate().then(setAppUpdate);
+    DownloadService.ExtensionStatus().then(setExt);
     // Just updated: show what's new, once.
     DownloadService.JustUpdated().then((sum) => sum && setWhatsNew({ title: `Updated to ${sum.to}`, summary: sum }));
     DownloadService.BrowserOffers().then((o) => setOffers(o ?? []));
@@ -114,6 +117,7 @@ function App() {
       Events.On("when-done", (ev) => setWhenDone(ev.data as WhenDoneState)),
       Events.On("tools-update", (ev) => setUpdate(ev.data as ToolsUpdate)),
       Events.On("app-update", (ev) => setAppUpdate(ev.data as AppUpdate)),
+      Events.On("extension-status", (ev) => setExt(ev.data as ExtensionStatus)),
       Events.On("clipboard-link", takeCopied),
       Events.On("browser-offers", (ev) => setOffers((ev.data as BrowserOffer[]) ?? [])),
     ];
@@ -294,6 +298,7 @@ function App() {
           {offers.map((o) => (
             <OfferCard key={o.id} offer={o} act={act} />
           ))}
+          {ext?.outdated && <ExtensionNotice ext={ext} act={act} />}
           {appUpdate?.available && (
             <AppUpdateNotice
               update={appUpdate}
@@ -987,6 +992,38 @@ function AppVersionSection({
       {u?.available && !u.busy && !u.error && <p class="hint">Version {u.latest} is available.</p>}
       {checked && !u?.available && !u?.error && <p class="hint">You have the latest version.</p>}
     </section>
+  );
+}
+
+// The browser still runs an older copy of the extension (it's loaded
+// "unpacked", so a Dream DM update doesn't reload it by itself).
+function ExtensionNotice({ ext, act }: { ext: ExtensionStatus; act: (p: Promise<unknown>) => void }) {
+  const [copied, setCopied] = useState("");
+  const copy = (page: string) =>
+    navigator.clipboard.writeText(page).then(() => {
+      setCopied(page);
+      setTimeout(() => setCopied(""), 2500);
+    });
+  return (
+    <div class="notice" role="status">
+      <div class="text">
+        <b>Your browser extension needs a reload</b> to use version {ext.installed}
+        {ext.running ? ` (it's running ${ext.running})` : ""}.
+        <small>
+          Open the extensions page, find Dream Download Manager and click its ↻ Reload button. Then reload the pages you
+          use it on.
+        </small>
+      </div>
+      <button class="primary" onClick={() => act(copy("chrome://extensions"))}>
+        {copied === "chrome://extensions" ? "Copied" : "Copy chrome://extensions"}
+      </button>
+      <button class="secondary" onClick={() => act(copy("edge://extensions"))}>
+        {copied === "edge://extensions" ? "Copied" : "Edge"}
+      </button>
+      <button class="secondary" onClick={() => act(DownloadService.DismissExtensionNotice())}>
+        Got it
+      </button>
+    </div>
   );
 }
 

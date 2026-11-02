@@ -68,6 +68,11 @@ type App interface {
 // extension is connected).
 type Pinger interface{ Pinged() }
 
+// ExtensionReporter is optional: an App that has it is told the browser
+// extension's version with every message ("" for versions before 0.4.1,
+// which didn't say), to tell you when the extension needs a reload.
+type ExtensionReporter interface{ ExtensionSeen(version string) }
+
 // Serve runs the app's side until ctx is cancelled. It writes the info file
 // in dir once it's listening, and removes it when it stops.
 func Serve(ctx context.Context, dir string, app App) error {
@@ -106,13 +111,27 @@ func handler(token string, app App) http.Handler {
 	mux := http.NewServeMux()
 	// GO NOTE: since Go 1.22, patterns can include the method: "POST /add"
 	// only matches POST requests.
+	seen := func(req Request) {
+		if e, ok := app.(ExtensionReporter); ok {
+			e.ExtensionSeen(req.ExtVersion)
+		}
+	}
+	// ping and open carry no link, only the extension's version (if any).
+	versionOnly := func(r *http.Request) {
+		var req Request
+		if json.NewDecoder(io.LimitReader(r.Body, maxBody)).Decode(&req) == nil {
+			seen(req)
+		}
+	}
 	mux.HandleFunc("POST /ping", func(w http.ResponseWriter, r *http.Request) {
 		if p, ok := app.(Pinger); ok {
 			p.Pinged()
 		}
+		versionOnly(r)
 		reply(w, Reply{OK: true})
 	})
 	mux.HandleFunc("POST /open", func(w http.ResponseWriter, r *http.Request) {
+		versionOnly(r)
 		app.ShowWindow()
 		reply(w, Reply{OK: true})
 	})
@@ -122,6 +141,7 @@ func handler(token string, app App) http.Handler {
 			reply(w, Reply{Error: "bad request"})
 			return
 		}
+		seen(req)
 		if err := app.OpenVideo(req); err != nil {
 			reply(w, Reply{Error: err.Error()})
 			return
@@ -134,6 +154,7 @@ func handler(token string, app App) http.Handler {
 			reply(w, Reply{Error: "bad request"})
 			return
 		}
+		seen(req)
 		name, err := app.AddFromBrowser(req)
 		if err != nil {
 			reply(w, Reply{Error: err.Error()})

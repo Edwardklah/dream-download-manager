@@ -42,7 +42,7 @@
   chrome.storage.onChanged.addListener((changes) => {
     if (changes.videoButton) enabled = changes.videoButton.newValue !== false;
     if (changes.hiddenSites) hiddenHere = (changes.hiddenSites.newValue || []).includes(siteKey());
-    if (!enabled || (hiddenHere && mode !== "hidden")) hide();
+    if (!enabled || hiddenHere) hide();
   });
 
   // The site as the user knows it: the top page's host (in an embedded
@@ -88,12 +88,11 @@
   let current = null; // the video the button is on
   let hideTimer = 0;
 
-  // The bar has three faces: the Download button (with ✕ to hide it on
-  // this site), "Hide on this site? Yes / No" after ✕ - so a stray click
-  // next to Download hides nothing - and, after Yes, "Hidden · Undo" for a
-  // few seconds.
-  let mode = "normal"; // "normal", "confirm", "hidden"
-  let faces = null;
+  // The ✕ next to Download only puts the button away for now: it stays
+  // away while the mouse is on that video, and comes back next time you
+  // point at it. Hiding it on a whole site is done from the extension's
+  // popup ("Button on this site"), where it's easy to undo.
+  let dismissed = null; // the video whose button you just put away
 
   function makeButton() {
     box = document.createElement("dlmanager-video-button");
@@ -103,41 +102,23 @@
       <style>
         .bar { display: flex; gap: 6px; font: 600 13px/1 "Segoe UI", system-ui, sans-serif;
                filter: drop-shadow(0 2px 6px rgb(0 0 0 / .4)); }
-        .bar[hidden] { display: none; }
         button { all: unset; cursor: pointer; display: flex; align-items: center; gap: 7px;
                  padding: 8px 11px; border-radius: 6px; background: #1e232c; color: #e7eaf0; }
         button:hover { background: #2c3340; }
         button:focus-visible { outline: 2px solid #f2a93b; outline-offset: 1px; }
         .hide { padding: 8px 9px; color: #8c95a6; }
-        .note { display: flex; align-items: center; padding: 8px 11px; border-radius: 6px;
-                background: #1e232c; color: #e7eaf0; font-weight: 500; }
-        .yes { color: #ffb3a8; }
         svg { width: 15px; height: 15px; fill: #f2a93b; }
         .x { width: 12px; height: 12px; fill: currentColor; }
       </style>
-      <div class="bar normal">
+      <div class="bar">
         <button class="main" title="Download this video with Dream Download Manager">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 3h2v9.2l3.6-3.6 1.4 1.4-6 6-6-6 1.4-1.4 3.6 3.6zM5 19h14v2H5z"/></svg>
           Download
         </button>
-        <button class="hide" title="Don't show this button on this site" aria-label="Don't show on this site">
+        <button class="hide" title="Hide this button for now" aria-label="Hide this button for now">
           <svg class="x" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19l5.6-5.6 5.6 5.6 1.4-1.4-5.6-5.6L19 6.4 17.6 5 12 10.6z"/></svg>
         </button>
-      </div>
-      <div class="bar confirm" hidden>
-        <span class="note site-q"></span>
-        <button class="yes">Yes, hide it</button>
-        <button class="no">No</button>
-      </div>
-      <div class="bar done" hidden>
-        <span class="note site-done"></span>
-        <button class="undo">Undo</button>
       </div>`;
-    faces = {
-      normal: root.querySelector(".normal"),
-      confirm: root.querySelector(".confirm"),
-      hidden: root.querySelector(".done"),
-    };
     const on = (sel, fn) =>
       root.querySelector(sel).addEventListener("click", (e) => {
         e.preventDefault();
@@ -146,49 +127,17 @@
       });
     on(".main", download);
     on(".hide", () => {
-      root.querySelector(".site-q").textContent = `Hide on ${siteKey()}?`;
-      setMode("confirm");
-    });
-    on(".no", () => setMode("normal"));
-    on(".yes", async () => {
-      await setHidden(true);
-      root.querySelector(".site-done").textContent = `Hidden on ${siteKey()}`;
-      setMode("hidden");
-      clearTimeout(hideTimer);
-      hideTimer = setTimeout(() => {
-        setMode("normal");
-        hide();
-      }, 4000);
-    });
-    on(".undo", async () => {
-      clearTimeout(hideTimer);
-      await setHidden(false);
-      setMode("normal");
+      dismissed = current;
+      hide();
     });
     // Moving onto the button must not count as leaving the video.
-    box.addEventListener("mouseenter", () => mode === "normal" && clearTimeout(hideTimer));
-    box.addEventListener("mouseleave", () => mode === "normal" && scheduleHide());
+    box.addEventListener("mouseenter", () => clearTimeout(hideTimer));
+    box.addEventListener("mouseleave", scheduleHide);
     document.documentElement.appendChild(box);
   }
 
-  function setMode(m) {
-    mode = m;
-    for (const [k, el] of Object.entries(faces)) el.hidden = k !== m;
-    if (m === "confirm") clearTimeout(hideTimer); // stays up while you decide
-    place();
-  }
-
-  // Adds or removes this site from the sites where the button is hidden.
-  async function setHidden(yes) {
-    const site = siteKey();
-    const { hiddenSites = [] } = await chrome.storage.local.get("hiddenSites");
-    const list = hiddenSites.filter((h) => h !== site);
-    if (yes) list.push(site);
-    await chrome.storage.local.set({ hiddenSites: list });
-  }
-
   function show(v) {
-    if (mode !== "normal" && box && box.style.display !== "none") return; // asking, or just hidden
+    if (v === dismissed) return; // you put it away: not until you point at the video again
     if (!enabled || hiddenHere || !eligible(v)) return;
     if (!box) makeButton();
     current = v;
@@ -213,7 +162,6 @@
 
   function hide() {
     if (box) box.style.display = "none";
-    if (faces && mode !== "normal") setMode("normal");
     current = null;
   }
 
@@ -234,8 +182,9 @@
       const r = o.getBoundingClientRect();
       return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
     });
+    if (v !== dismissed) dismissed = null; // left that video: it gets its button again next time
     if (v) show(v);
-    else if (current && mode === "normal") scheduleHide();
+    else if (current) scheduleHide();
   }, { passive: true });
   addEventListener("scroll", place, { passive: true, capture: true });
   addEventListener("resize", place, { passive: true });

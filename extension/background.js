@@ -20,9 +20,13 @@ async function catching() {
 
 // ---- Talking to Dream Download Manager ----
 
+// Every message says which version of the extension sent it, so Dream DM
+// can tell you when an update needs a Reload in chrome://extensions.
+const VERSION = chrome.runtime.getManifest().version;
+
 async function send(message) {
   try {
-    return await chrome.runtime.sendNativeMessage(HOST, message);
+    return await chrome.runtime.sendNativeMessage(HOST, { ...message, extVersion: VERSION });
   } catch (err) {
     // "Specified native messaging host not found" (dlm-host isn't installed)
     // or "...forbidden" (installed for a different extension ID) mean setup is
@@ -201,3 +205,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, respond) => {
     return true;
   }
 });
+
+// When the browser starts, and when the extension is installed or reloaded:
+// say hello, so Dream DM (if it's running) knows this version straight away.
+// A ping never starts Dream DM.
+chrome.runtime.onStartup.addListener(() => send({ type: "ping" }));
+chrome.runtime.onInstalled.addListener(() => send({ type: "ping" }));

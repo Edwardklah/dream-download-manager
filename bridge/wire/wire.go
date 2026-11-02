@@ -41,6 +41,9 @@ type Request struct {
 	Title     string `json:"title,omitempty"`
 	Embedded  bool   `json:"embedded,omitempty"`
 	NotLoaded bool   `json:"notLoaded,omitempty"`
+	// ExtVersion: the browser extension's version (from 0.4.1; empty =
+	// older), so the app can tell you when it needs a reload.
+	ExtVersion string `json:"extVersion,omitempty"`
 }
 
 // Headers turns the request's browser details into HTTP headers for the

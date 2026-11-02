@@ -37,6 +37,7 @@ type DownloadService struct {
 	videoState     // video downloads: see video.go
 	extrasState    // scheduler, when done, updates, clipboard: see extras.go
 	appUpdateState // updates of Dream DM itself: see appupdate.go
+	extState       // is the browser extension up to date: see extversion.go
 }
 
 // The event the frontend listens to: the full list, at most 4x a second.

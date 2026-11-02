@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Dream Download Manager",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Sends downloads to Dream Download Manager, the free open-source download manager.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAzTqaXHS9gucmxuhXNKGl7cNPkoCjJPhXbqgWV0uxIGge3RfShlUgtpkZCGbXdgfnik8DddlifCcDHIc+DRYnBiJnIJ8vKgQkgjRvPSznJeLqJW6wC58Gsu1fw9VaFXXLGsCFYjjjIngb/uprpi5Q2WNy99hI5wMIRTE0tzdr1hFYPW2evylQ+8Gw78feKx9PKHGqmS6pwanhSkAkV0k1TfLArya3d1bPQKak18Ao74NE9EX4UJRKkTEbxx5MtY0eKyKnKAssYQ1hol9zBbBwG6x2dPyrNQHHI4guJPWu1GN9VT29p371HH0AfMFYkrx1+Caw9hooMHrj+feSLBNEsQIDAQAB",
   "permissions": [

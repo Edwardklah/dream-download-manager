@@ -56,25 +56,31 @@ chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
   });
 });
 
-// The button on videos: on/off, and sites where you hid it.
+// The button on videos: on/off everywhere, and on/off for this tab's site.
+// (The ✕ on the button itself only puts it away for the moment.)
 const videoButtonEl = document.getElementById("videoButton");
+const siteButtonEl = document.getElementById("siteButton");
 chrome.storage.local.get(["videoButton", "hiddenSites"]).then(({ videoButton = true, hiddenSites = [] }) => {
   videoButtonEl.checked = videoButton;
   chrome.tabs.query({ active: true, currentWindow: true }).then(([tab]) => {
     let site = "";
     try {
-      site = new URL(tab.url).hostname;
+      if (/^https?:/.test(tab.url)) site = new URL(tab.url).hostname;
     } catch {}
-    if (site && hiddenSites.includes(site)) {
-      document.getElementById("hiddenNote").hidden = false;
-      document.getElementById("unhide").addEventListener("click", async () => {
-        const { hiddenSites: list = [] } = await chrome.storage.local.get("hiddenSites");
-        await chrome.storage.local.set({ hiddenSites: list.filter((h) => h !== site) });
-        document.getElementById("hiddenNote").hidden = true;
-      });
-    }
+    if (!site) return;
+    document.getElementById("siteName").textContent = site;
+    document.getElementById("siteRow").hidden = false;
+    siteButtonEl.checked = !hiddenSites.includes(site);
+    siteButtonEl.disabled = !videoButton;
+    siteButtonEl.addEventListener("change", async () => {
+      const { hiddenSites: list = [] } = await chrome.storage.local.get("hiddenSites");
+      const rest = list.filter((h) => h !== site);
+      if (!siteButtonEl.checked) rest.push(site);
+      await chrome.storage.local.set({ hiddenSites: rest });
+    });
   });
 });
 videoButtonEl.addEventListener("change", () => {
   chrome.storage.local.set({ videoButton: videoButtonEl.checked });
+  siteButtonEl.disabled = !videoButtonEl.checked;
 });
