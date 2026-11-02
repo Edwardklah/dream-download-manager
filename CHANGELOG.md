@@ -9,6 +9,9 @@ How to write an entry (one section per release, before tagging it):
 - Start a line with ★ if it's a highlight: someone who skipped many
   updates only sees the highlights of older versions.
 
+## 0.9.7
+- Browser extension: the ✕ on the Download button now asks before hiding it on a site, and offers Undo.
+
 ## 0.9.6
 - ★ Delete a finished download's file from Dream DM: ✕ now offers "Remove and delete the file" or "Delete the file only" (it goes to the Recycle Bin).
 - Files moved or deleted outside Dream DM are marked "File not found", with Download again.
