@@ -88,11 +88,12 @@
   let current = null; // the video the button is on
   let hideTimer = 0;
 
-  // The ✕ next to Download only puts the button away for now: it stays
-  // away while the mouse is on that video, and comes back next time you
-  // point at it. Hiding it on a whole site is done from the extension's
-  // popup ("Button on this site"), where it's easy to undo.
-  let dismissed = null; // the video whose button you just put away
+  // The ✕ next to Download hides the button on this page until you leave
+  // it or reload it. (On sites that change pages without reloading, like
+  // YouTube going to the next video, a new address counts as a new page.)
+  // Hiding it on a whole site for good is done from the extension's popup
+  // ("Button on this site"), where it's easy to undo.
+  let dismissedOn = ""; // the page address where you closed it
 
   function makeButton() {
     box = document.createElement("dlmanager-video-button");
@@ -115,7 +116,7 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M11 3h2v9.2l3.6-3.6 1.4 1.4-6 6-6-6 1.4-1.4 3.6 3.6zM5 19h14v2H5z"/></svg>
           Download
         </button>
-        <button class="hide" title="Hide this button for now" aria-label="Hide this button for now">
+        <button class="hide" title="Hide this button on this page" aria-label="Hide this button on this page">
           <svg class="x" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19l5.6-5.6 5.6 5.6 1.4-1.4-5.6-5.6L19 6.4 17.6 5 12 10.6z"/></svg>
         </button>
       </div>`;
@@ -127,7 +128,7 @@
       });
     on(".main", download);
     on(".hide", () => {
-      dismissed = current;
+      dismissedOn = location.href;
       hide();
     });
     // Moving onto the button must not count as leaving the video.
@@ -137,7 +138,7 @@
   }
 
   function show(v) {
-    if (v === dismissed) return; // you put it away: not until you point at the video again
+    if (dismissedOn === location.href) return; // closed on this page
     if (!enabled || hiddenHere || !eligible(v)) return;
     if (!box) makeButton();
     current = v;
@@ -182,7 +183,6 @@
       const r = o.getBoundingClientRect();
       return e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom;
     });
-    if (v !== dismissed) dismissed = null; // left that video: it gets its button again next time
     if (v) show(v);
     else if (current) scheduleHide();
   }, { passive: true });

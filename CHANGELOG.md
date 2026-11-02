@@ -10,7 +10,7 @@ How to write an entry (one section per release, before tagging it):
   updates only sees the highlights of older versions.
 
 ## 0.9.8
-- Browser extension: ✕ on the Download button just puts it away for now; to hide it on a site, use the switch in the extension's popup.
+- Browser extension: ✕ on the Download button hides it on that page until you leave or reload it; to hide it on a site for good, use the switch in the extension's popup.
 - Dream DM tells you when the browser extension needs a Reload after an update, and how.
 
 ## 0.9.7
